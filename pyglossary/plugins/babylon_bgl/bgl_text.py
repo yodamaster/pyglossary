@@ -1,3 +1,24 @@
+# -*- coding: utf-8 -*-
+##
+## Copyright © 2008-2016 Saeed Rasooli <saeed.gnu@gmail.com> (ilius)
+## Copyright © 2011-2012 kubtek <kubtek@gmail.com>
+## This file is part of PyGlossary project, http://github.com/ilius/pyglossary
+## Thanks to Raul Fernandes <rgfbr@yahoo.com.br> and Karl Grill for reverse engineering
+##
+## This program is a free software; you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation; either version 3, or (at your option)
+## any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License along
+## with this program. Or on Debian systems, from /usr/share/common-licenses/GPL
+## If not, see <http://www.gnu.org/licenses/gpl.txt>.
+
 import re
 
 entryPattern = re.compile('(?:&#x|&#|&)(\\w+);?', re.I)
@@ -46,7 +67,7 @@ def replace_html_entry_no_escape(m):
                     &csdot; despite other references like &amp; are replaced with corresponding
                     characters.
                 """
-                log.warning('unknown html entity {0}'.format(text))
+                log.warning('unknown html entity %s'%text)
                 res = text
     else:
         raise ArgumentError()
@@ -65,13 +86,13 @@ def replace_html_entry(m):
         return xml_escape(res)
 
 
-def replace_html_entries(self, text):
+def replace_html_entries(text):
     # &ldash;
     # &#0147;
     # &#x010b;
     return re.sub(entryPattern, replace_html_entry, text)
 
-def replace_html_entries_in_keys(self, text):
+def replace_html_entries_in_keys(text):
     # &ldash;
     # &#0147;
     # &#x010b;
@@ -171,7 +192,67 @@ def fixImgLinks(text):
 
 
 
+def stripDollarIndexes(word):
+    i = 0
+    main_word = b''
+    strip_cnt = 0 # number of sequences found
+    # strip $<index>$ sequences
+    while True:
+        d0 = word.find(b'$', i)
+        if d0 == -1:
+            main_word += word[i:]
+            break
+        d1 = word.find(b'$', d0+1)
+        if d1 == -1:
+            #log.debug('stripDollarIndexes(%s):\npaired $ is not found'%word)
+            main_word += word[i:]
+            break
+        if d1 == d0+1:
+            """
+                You may find keys (or alternative keys) like these:
+                sur l'arbre$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+                obscurantiste$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+                They all end on a sequence of '$', key length including dollars is always 60 chars.
+                You may find keys like these:
+                extremidade-$$$-$$$-linha
+                .FIRM$$$$$$$$$$$$$
+                etc
 
+                summary: we must remove any sequence of dollar signs longer than 1 chars
+            """
+            #log.debug('stripDollarIndexes(%s):\nfound $$'%word)
+            main_word += word[i:d0]
+            i = d1 + 1
+            while i < len(word) and word[i] == ord(b'$'):
+                i += 1
+            if i >= len(word):
+                break
+            continue
+        ok = True
+        for x in word[d0+1:d1]:
+            if x not in b'0123456789':
+                #log.debug('stripDollarIndexes(%s):\nnon-digit between $$'%word)
+                ok = False
+                break
+        if not ok:
+            main_word += word[i:d1]
+            i = d1
+            continue
+        if d1+1 < len(word) and word[d1+1] != ' ':
+            """
+                Examples:
+                make do$4$/make /do
+                potere$1$<BR><BR>See also <a href='file://ITAL-ENG POTERE 1249-1250.pdf'>notes...</A>
+                volere$1$<BR><BR>See also <a href='file://ITAL-ENG VOLERE 1469-1470.pdf'>notes...</A>
+                Ihre$1$Ihres
+            """
+            #log.debug('stripDollarIndexes(%s):\nsecond $ is followed by non-space'%word))
+            pass
+        main_word += word[i:d0]
+        i = d1+1
+        strip_cnt += 1
+
+    return main_word, strip_cnt
 
 
 
