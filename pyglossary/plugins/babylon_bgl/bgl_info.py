@@ -35,36 +35,36 @@ def decodeBglBinTime(binStr):
     return '%.2d/%.2d/%.2d, %.2d:%.2d'%(year, month, day, hour, minute)
 
 
-def languageInfoDecode(valueBytes):
+def languageInfoDecode(b_value):
     """
         returns BabylonLanguage instance
     """
-    intValue = binStrToInt(valueBytes)
+    intValue = binStrToInt(b_value)
     try:
         return languageByCode[intValue]
     except IndexError:
         log.warning('read_type_3: unknown language code = %s'%intValue)
         return
 
-def charsetInfoDecode(valueBytes):
-    value = valueBytes[0]
+def charsetInfoDecode(b_value):
+    value = b_value[0]
     try:
         return charsetByCode[value]
     except IndexError:
         log.warning('read_type_3: unknown charset %s'%value)
 
-def aboutInfoDecode(valueBytes):
-    if not valueBytes:
+def aboutInfoDecode(b_value):
+    if not b_value:
         return
-    aboutExt, _, aboutContents = valueBytes.partition('\x00')
+    aboutExt, _, aboutContents = b_value.partition('\x00')
     if not aboutExt:
         log.warning('read_type_3: about: no file extension')
         return
     return (aboutExt, aboutContents)
 
-def utf16InfoDecode(valueBytes):
+def utf16InfoDecode(b_value):
     """
-        valueBytes is byte array
+        b_value is byte array
         returns str, or None (on errors)
 
         block type = 3
@@ -74,29 +74,29 @@ def utf16InfoDecode(valueBytes):
         <4 byte len1> \x00 \x00 <message in utf-16>
         len1 - length of message in 2-byte chars
     """
-    if valueBytes[0] != 0:
-        log.warning('utf16InfoDecode: valueBytes=%s, null expected at 0'%list(valueBytes))
+    if b_value[0] != 0:
+        log.warning('utf16InfoDecode: b_value=%s, null expected at 0'%list(b_value))
         return
     
-    if valueBytes[1] == 0:
-        if len(valueBytes) > 2:
-            log.warning('utf16InfoDecode: unexpected valueBytes size: %s'%len(valueBytes))
+    if b_value[1] == 0:
+        if len(b_value) > 2:
+            log.warning('utf16InfoDecode: unexpected b_value size: %s'%len(b_value))
         return
 
-    elif valueBytes[1] > 1:
-        log.warning('utf16InfoDecode: valueBytes=%s, unexpected byte at 1'%list(valueBytes))
+    elif b_value[1] > 1:
+        log.warning('utf16InfoDecode: b_value=%s, unexpected byte at 1'%list(b_value))
         return
 
-    ## now valueBytes[1] == 1
-    size = 2 * binStrToInt(valueBytes[2:6])
-    if tuple(valueBytes[6:8]) != (0, 0):
-        log.warning('utf16InfoDecode: valueBytes=%s, null expected at 6:8'%list(valueBytes))
-    if size != len(valueBytes)-8:
-        log.warning('utf16InfoDecode: valueBytes=%s, size does not match'%list(valueBytes))
+    ## now b_value[1] == 1
+    size = 2 * binStrToInt(b_value[2:6])
+    if tuple(b_value[6:8]) != (0, 0):
+        log.warning('utf16InfoDecode: b_value=%s, null expected at 6:8'%list(b_value))
+    if size != len(b_value)-8:
+        log.warning('utf16InfoDecode: b_value=%s, size does not match'%list(b_value))
 
-    return valueBytes[8:].decode('utf16')## str
+    return b_value[8:].decode('utf16')## str
 
-def flagsInfoDecode(valueBytes):
+def flagsInfoDecode(b_value):
     """
         returns a dict with these keys:
             utf8Encoding
@@ -109,7 +109,7 @@ def flagsInfoDecode(valueBytes):
                 see code 0x20 as well                         
 
     """
-    flags = binStrToInt(valueBytes)
+    flags = binStrToInt(b_value)
     return {
         'utf8Encoding': (flags & 0x8000 != 0),
         'spellingAlternatives': (flags & 0x10000 == 0),
@@ -147,7 +147,7 @@ infoKeysByCode = {
 infoKeyDecodeMethods = {
     'sourceLang': languageInfoDecode,
     'targetLang': languageInfoDecode,
-    'browsingEnabled': lambda valueBytes: (valueBytes[0] != 0),
+    'browsingEnabled': lambda b_value: (b_value[0] != 0),
     'bgl_numEntries': binStrToInt,
     'creationTime': decodeBglBinTime,
     'middleUpdated': decodeBglBinTime,
@@ -219,7 +219,7 @@ purchaseAddress (0x2e):
 #    ## 0x30 - case sensitive search is disabled
 #    ## 0x31 - case sensitive search is enabled
 #    ## see code 0x11 as well
-#    if valueBytes:
-#        value = valueBytes[0]
+#    if b_value:
+#        value = b_value[0]
 """
 
