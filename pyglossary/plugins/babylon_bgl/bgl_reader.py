@@ -48,7 +48,7 @@ file = io.BufferedReader
 import gzip
 import re
 
-from formats_common import *
+from pyglossary.formats_common import *
 from pyglossary.text_utils import (
     binStrToInt,
     excMessage,

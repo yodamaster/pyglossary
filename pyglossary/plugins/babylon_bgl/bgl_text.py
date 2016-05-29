@@ -20,13 +20,16 @@
 ## If not, see <http://www.gnu.org/licenses/gpl.txt>.
 
 import re
+from pyglossary.formats_common import log
+
 
 entryPattern = re.compile('(?:&#x|&#|&)(\\w+);?', re.I)
 entryKeyPattern = re.compile('(?:&#x|&#|&)(\\w+);', re.I)
 
 
-def replace_html_entry_no_escape(m):
+def replace_html_entry_no_escape(matched):
     """
+        matched: instance of _sre.SRE_Match
         Replace character entity with the corresponding character
 
         Return the original string if conversion fails.
@@ -35,8 +38,8 @@ def replace_html_entry_no_escape(m):
     import html.entities
     from pyglossary.html_utils import name2codepoint
 
-    text = m.group(0)
-    name = m.group(1)
+    text = matched.group(0)
+    name = matched.group(1)
     res = None
     if text[:2] == '&#':
         # character reference
@@ -73,43 +76,34 @@ def replace_html_entry_no_escape(m):
         raise ArgumentError()
     return res
 
-def replace_html_entry(m):
+def replace_html_entry(matched):
     """
+        matched: instance of _sre.SRE_Match
         Same as replace_html_entry_no_escape, but escapes result string
 
         Only <, >, & characters are escaped.
     """
-    res = replace_html_entry_no_escape(m)
-    if m.group(0) == res: # conversion failed
+    res = replace_html_entry_no_escape(matched)
+    if matched.group(0) == res: # conversion failed
         return res
     else:
         return xml_escape(res)
 
 
-def replace_html_entries(text):
-    # &ldash;
-    # &#0147;
-    # &#x010b;
-    return re.sub(entryPattern, replace_html_entry, text)
-
-def replace_html_entries_in_keys(text):
-    # &ldash;
-    # &#0147;
-    # &#x010b;
-    return re.sub(entryKeyPattern, replace_html_entry_no_escape, text)
-
-
-
-def replace_dingbat(m):
+def replace_dingbat(matched):
     """
+        matched: instance of _sre.SRE_Match
         replace chars \\u008c-\\u0095 with \\u2776-\\u277f
     """
-    ch = m.group(0)
+    ch = matched.group(0)
     code = ch + (0x2776-0x8c)
     return chr(code)
 
-def new_line_escape_string_callback(m):
-    ch = m.group(0)
+def new_line_escape_string_callback(matched):
+    """
+        matched: instance of _sre.SRE_Match
+    """
+    ch = matched.group(0)
     if ch == '\n':
         return '\\n'
     if ch == '\r':
@@ -118,18 +112,53 @@ def new_line_escape_string_callback(m):
         return '\\\\'
     return ch
 
+
+def replace_html_entries(text):
+    # &ldash;
+    # &#0147;
+    # &#x010b;
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        entryPattern,
+        replace_html_entry,
+        text,
+    )
+
+def replace_html_entries_in_keys(text):
+    # &ldash;
+    # &#0147;
+    # &#x010b;
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        entryKeyPattern,
+        replace_html_entry_no_escape,
+        text,
+    )
+
+
+
+
 def new_line_escape_string(text):
     """
         convert text to c-escaped string:
         \ -> \\
         new line -> \n or \r
     """
-    return re.sub('[\\r\\n\\\\]', new_line_escape_string_callback, text)
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        '[\\r\\n\\\\]',
+        new_line_escape_string_callback,
+        text,
+    )
 
 
 def strip_html_tags(text):
-    return re.sub('(?:<[/a-zA-Z].*?(?:>|$))+', ' ', text)
-
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        '(?:<[/a-zA-Z].*?(?:>|$))+',
+        ' ',
+        text,
+    )
 
 
 def remove_control_chars(text):
@@ -137,21 +166,39 @@ def remove_control_chars(text):
     # \x0a - line feed
     # \x0b - vertical tab
     # \x0d - carriage return
-    return re.sub('[\x00-\x08\x0c\x0e-\x1f]', '', text)
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        '[\x00-\x08\x0c\x0e-\x1f]',
+        '',
+        text,
+    )
+
 
 def replace_new_lines(text):
-    return re.sub('[\r\n]+', ' ', text)
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        '[\r\n]+',
+        ' ',
+        text,
+    )
+
 
 def normalize_new_lines(text):
     """
         convert new lines to unix style and remove consecutive new lines
     """
-    return re.sub('[\r\n]+', '\n', text)
+    if log.isDebug(): assert isinstance(text, str)
+    return re.sub(
+        '[\r\n]+',
+        '\n',
+        text,
+    )
 
 
 def replace_ascii_char_refs(text, encoding):
     # &#0147;
     # &#x010b;
+    if log.isDebug(): assert isinstance(text, str)
     pat = re.compile('(&#\\w+;)', re.I)
     parts = re.split(pat, text)
     for i in range(len(parts)):
@@ -187,12 +234,14 @@ def fixImgLinks(text):
         Control characters \x1e and \x1f are useless in html text, so we may safely remove
         all of them, irrespective of context.
     """
+    if log.isDebug(): assert isinstance(text, str)
     return text.replace('\x1e', '').replace('\x1f', '')
 
 
 
 
 def stripDollarIndexes(word):
+    if log.isDebug(): assert isinstance(text, bytes)
     i = 0
     main_word = b''
     strip_cnt = 0 # number of sequences found
