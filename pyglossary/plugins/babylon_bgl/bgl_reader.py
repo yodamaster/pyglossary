@@ -47,8 +47,9 @@ file = io.BufferedReader
 
 import gzip
 import re
+from collections import OrderedDict as odict
 
-from pyglossary.formats_common import *
+from pyglossary.plugins.formats_common import *
 from pyglossary.text_utils import (
     binStrToInt,
     excMessage,
@@ -57,8 +58,6 @@ from pyglossary.text_utils import (
 )
 
 from pyglossary.xml_utils import xml_escape
-
-import pyglossary.gregorian as gregorian
 
 from .bgl_info import (
     infoKeysByCode,
@@ -96,8 +95,8 @@ class BGLGzipFile(gzip.GzipFile):
         **kwargs
     ):
         gzip.GzipFile.__init__(self, fileobj=fileobj, **kwargs)
-        self.closeFileobj
-    def close(self)
+        self.closeFileobj = closeFileobj
+    def close(self):
         if self.closeFileobj:
             self.fileobj.close()
     def _read_eof(self):
@@ -182,37 +181,37 @@ class DefinitionFields(object):
     
     }
     def __init__(self):
-        self.bytesByCode = {}
+        #self.bytesByCode = {}
         #self.strByCode = {}
 
         self.encoding = None # encoding of the definition
         self.singleEncoding = True # true if the definition was encoded with a single encoding
         
-        self.defi = None ## main definition part of defi, bytes
-        self.u_defi = None ## main part of definition, str
+        self.b_defi = None ## bytes, main definition part of defi
+        self.u_defi = None ## str, main part of definition
 
         self.partOfSpeech = None # string representation of the part of speech, utf-8
 
-        self.title = None ## bytes
+        self.b_title = None ## bytes
         self.u_title = None ## str
 
-        self.title_trans = None ## bytes
+        self.b_title_trans = None ## bytes
         self.u_title_trans = None ## str
 
-        self.transcription_50 = None ## bytes
+        self.b_transcription_50 = None ## bytes
         self.u_transcription_50 = None ## str
-        self.transcription_50_code = None
+        self.code_transcription_50 = None
 
-        self.transcription_60 = None ## bytes
+        self.b_transcription_60 = None ## bytes
         self.u_transcription_60 = None ## str
-        self.transcription_60_code = None
+        self.code_transcription_60 = None
 
-        self.field_1a = None ## bytes
+        self.b_field_1a = None ## bytes
         self.u_field_1a = None ## str
 
-        self.field_07 = None
-        self.field_06 = None
-        self.field_13 = None
+        self.b_field_07 = None ## bytes
+        self.b_field_06 = None ## bytes
+        self.b_field_13 = None ## bytes
 
 
 class BglReader(object):
@@ -263,7 +262,7 @@ class BglReader(object):
         ####
         self.bglNumEntries = None
         self.wordLenMax = 0
-        self.defiLenMax = 0
+        self.defiMaxBytes = 0
         ##
         self.metadata2 = None
         self.rawDumpFile = None
@@ -272,7 +271,6 @@ class BglReader(object):
         ##
         self.stripSlashAltKeyPattern = re.compile(r'(^|\s)/(\w)', re.U)
         self.specialCharPattern = re.compile(r'[^\s\w.]', re.U)
-        self.charRefStatPattern = re.compile(b'(&#\\w+;)', re.I)
         ###
         self.file = None
         # offset of gzip header, set in self.open()
@@ -280,6 +278,8 @@ class BglReader(object):
         # must be a in RRGGBB format
         self.partOfSpeechColor = '007000'
         self.resFiles = []
+        self.iconData = None
+
 
     def __len__(self):
         if self.numEntries is None:
@@ -362,7 +362,7 @@ class BglReader(object):
             for key in kwargs:
                 if key in debugReadOptions:
                     log.error(
-                        'BGL Reader: option "%s" is only usable in debug mode'%key
+                        'BGL Reader: option "%s" is only usable in debug mode'%key +
                         ', add -v4 to enable debug mode'
                     )
                 else:
@@ -395,13 +395,13 @@ class BglReader(object):
             if not bglFile:
                 log.error('file pointer empty: %s'%bglFile)
                 return False
-            head = bglFile.read(6)
+            b_head = bglFile.read(6)
 
-        if len(head)<6 or not head[:4] in (b'\x12\x34\x00\x01', b'\x12\x34\x00\x02'):
-            log.error('invalid header: %s'%head[:6])
+        if len(b_head)<6 or not b_head[:4] in (b'\x12\x34\x00\x01', b'\x12\x34\x00\x02'):
+            log.error('invalid header: %s'%list(b_head[:6]))
             return False
 
-        self.gzipOffset = gzipOffset = binStrToInt(head[4:6])
+        self.gzipOffset = gzipOffset = binStrToInt(b_head[4:6])
         log.debug('Position of gz header: %s'%gzipOffset)
 
         if gzipOffset < 6:
@@ -409,8 +409,8 @@ class BglReader(object):
             return False
 
         self.file = BGLGzipFile(
-            fileobj=FileOffS(self._filename, gzipOffset),
-            closeFileobj=True,
+            fileobj = FileOffS(self._filename, gzipOffset),
+            closeFileobj = True,
         )
 
         return True
@@ -432,8 +432,6 @@ class BglReader(object):
             self.numBlocks += 1
             if not block.data:
                 continue
-            word = ''
-            #defi = ''
             if block.type==0:
                 self.readType0(block)
             elif block.type in (1, 7, 10, 11, 13):
@@ -486,11 +484,25 @@ class BglReader(object):
 
         return True
 
-    def setGlossaryInfo(self, glos):
+    def setGlossaryInfo(self):
         glos = self._glos
         ###
-        glos.setInfo('sourceLang', self.sourceLang)
-        glos.setInfo('targetLang', self.targetLang)
+        if self.sourceLang:
+            glos.setInfo('sourceLang', self.sourceLang.name)
+        if self.targetLang:
+            glos.setInfo('targetLang', self.targetLang.name)
+        ###
+        for attr in (
+            'defaultCharset',
+            'sourceCharset',
+            'targetCharset',
+            'defaultEncoding',
+            'sourceEncoding',
+            'targetEncoding',
+        ):
+            value = getattr(self, attr, None)
+            if value:
+                glos.setInfo('bgl_' + attr, value)
         ###
         glos.setInfo('sourceCharset', 'UTF-8')
         glos.setInfo('targetCharset', 'UTF-8')
@@ -504,19 +516,11 @@ class BglReader(object):
                 'lastUpdated',
             }:
                 key = 'bgl_' + key
-            glos.setInfo(key, value)
-        ###
-        for attr in (
-            'defaultCharset',
-            'sourceCharset',
-            'targetCharset',
-            'defaultEncoding',
-            'sourceEncoding',
-            'targetEncoding',
-        ):
-            value = getattr(self, attr, None)
-            if value:
-                glos.setInfo('bgl_' + attr, value)
+            try:
+                glos.setInfo(key, value)
+            except:
+                log.exception('key = %s'%key)
+
 
 
 
@@ -590,7 +594,7 @@ class BglReader(object):
             return -1 if error
         """
         if num<1 or num>4:
-            log.error('invalid argument num=%s'%num)])
+            log.error('invalid argument num=%s'%num)
             return -1
         self.file.flush()
         buf = self.file.read(num)
@@ -690,6 +694,17 @@ class BglReader(object):
         if value:
             if isinstance(value, dict):
                 self.info.update(value)
+            elif key in {
+                'sourceLang',
+                'targetLang',
+                'defaultCharset',
+                'sourceCharset',
+                'targetCharset',
+                'sourceEncoding',
+                'targetEncoding',
+                'iconData',
+            }:
+                setattr(self, key, value)
             else:
                 self.info[key] = value
 
@@ -750,21 +765,21 @@ class BglReader(object):
             if block.data and block.type in (1, 7, 10, 11, 13):
                 pos = 0
                 ## word:
-                succeed, pos, word, raw_key = self.readEntryWord(block, pos)
+                succeed, pos, u_word, b_word = self.readEntryWord(block, pos)
                 if not succeed:
                     continue
                 ## defi:
-                succeed, pos, defi, key_defi = self.readEntryDefi(block, pos, raw_key)
+                succeed, pos, u_defi, b_defi = self.readEntryDefi(block, pos, b_word)
                 if not succeed:
                     continue
                 # now pos points to the first char after definition
-                succeed, pos, alts = self.readEntryAlts(block, pos, raw_key, word)
+                succeed, pos, u_alts = self.readEntryAlts(block, pos, b_word, u_word)
                 if not succeed:
                     continue
 
                 return (
-                    [word] + alts,
-                    defi,
+                    [u_word] + u_alts,
+                    u_defi,
                 )
 
         raise StopIteration
@@ -773,8 +788,8 @@ class BglReader(object):
         return self
 
     def __next__(self):
-        words, defis = self.readEntry()
-        return Entry(words, defis)
+        u_words, u_defis = self.readEntry()
+        return Entry(u_words, u_defis)
 
     def readEntryWord(self, block, pos):
         """
@@ -782,7 +797,9 @@ class BglReader(object):
 
             Return value is a list.
             (False, None, None, None) if error
-            (True, pos, word, raw_key) if OK
+            (True, pos, u_word, b_word) if OK
+                u_word is a str instance (utf-8)
+                b_word is a bytes instance
         """
         Err = (False, None, None, None)
         if block.type == 11:
@@ -800,8 +817,8 @@ class BglReader(object):
         if pos + Len > len(block.data):
             log.error('reading block offset=%#x:: reading word: pos + Len > len(block.data)'%block.offset)
             return Err
-        raw_key = block.data[pos:pos+Len]
-        word = self.processKey(raw_key)
+        b_word = block.data[pos:pos+Len]
+        u_word = self.processKey(b_word)
         """
             Entry keys may contain html text, for example,
             ante<font face'Lucida Sans Unicode'>&lt; meridiem
@@ -812,10 +829,19 @@ class BglReader(object):
             We should not process keys as html, since Babylon do not process them as such.
         """
         pos += Len
-        self.wordLenMax = max(self.wordLenMax, len(word))
-        return True, pos, word, raw_key
+        self.wordLenMax = max(self.wordLenMax, len(u_word))
+        return True, pos, u_word, b_word
 
-    def readEntryDefi(self, block, pos, raw_key):
+    def readEntryDefi(self, block, pos, b_key):
+        """
+            Read defi part of entry.
+
+            Return value is a list.
+            (False, None, None, None) if error
+            (True, pos, u_defi, b_defi) if OK
+                u_defi is a str instance (utf-8)
+                b_defi is a bytes instance
+        """
         Err = (False, None, None, None)
         if block.type == 11:
             if pos + 8 > len(block.data):
@@ -826,30 +852,31 @@ class BglReader(object):
             pos += 4
         else:
             if pos + 2 > len(block.data):
-                log.error('reading block offset=%#x:: reading defi size: pos + 2 > len(block.data)'block.offset)
+                log.error('reading block offset=%#x:: reading defi size: pos + 2 > len(block.data)'%block.offset)
                 return Err
             Len = binStrToInt(block.data[pos:pos+2])
             pos += 2
         if pos + Len > len(block.data):
             log.error('reading block offset=%#x:: reading defi: pos + Len > len(block.data)'%block.offset)
             return Err
-        raw_defi = block.data[pos:pos+Len]
-        defi = self.processDefi(raw_defi, raw_key)
-        self.defiLenMax = max(self.defiLenMax, len(raw_defi))
+        b_defi = block.data[pos:pos+Len]
+        u_defi = self.processDefi(b_defi, b_key)
+        self.defiMaxBytes = max(self.defiMaxBytes, len(b_defi))
 
         pos += Len
-        return True, pos, defi, raw_defi
+        return True, pos, u_defi, b_defi
 
-    def readEntryAlts(self, block, pos, raw_key, key):
+    def readEntryAlts(self, block, pos, b_key, u_key):
         """
             returns:
                 (False, None, None) if error
-                (True, pos, alts) if succeed
+                (True, pos, u_alts) if succeed
+                    u_alts is a sorted list, items are str (utf-8)
         
         """
         Err = (False, None, None)
         # use set instead of list to prevent duplicates
-        alts = set()
+        u_alts = set()
         while pos < len(block.data):
             if block.type == 11:
                 if pos + 4 > len(block.data):
@@ -871,104 +898,105 @@ class BglReader(object):
             if pos + Len > len(block.data):
                 log.error('reading block offset=%#x:: reading alt: pos + Len > len(block.data)'%block.offset)
                 return Err
-            raw_alt = block.data[pos:pos+Len]
-            alt = self.processAlternativeKey(raw_alt, raw_key)
+            b_alt = block.data[pos:pos+Len]
+            u_alt = self.processAlternativeKey(b_alt, b_key)
             # Like entry key, alt is not processed as html by babylon, so do we.
-            alts.add(alt)
+            u_alts.add(u_alt)
             pos += Len
-        if key in alts:
-            alts.remove(key)
-        return True, pos, list(sorted(alts))
+        if u_key in u_alts:
+            u_alts.remove(u_key)
+        return True, pos, list(sorted(u_alts))
 
 
-    def charReferencesStat(self, text, encoding):
+    def charReferencesStat(self, b_text, encoding):
         pass
 
 
-    def decodeCharsetTags(self, text, defaultEncoding):
+    def decodeCharsetTags(self, b_text, defaultEncoding):
         """
+            b_text is a bytes
             Decode html text taking into account charset tags and default encoding.
 
             Return value: (u_text, defaultEncodingOnly)
-            u_text is str
-            defaultEncodingOnly parameter is false if the text contains parts encoded with
-            non-default encoding (babylon character references '<CHARSET c="T">00E6;</CHARSET>'
-            do not count).
+                u_text is str
+                defaultEncodingOnly parameter is false if the text contains parts encoded with
+                non-default encoding (babylon character references '<CHARSET c="T">00E6;</CHARSET>'
+                do not count).
         """
-        parts = re.split(charsetDecodePattern, text)
+        
+        
+        b_parts = re.split(charsetDecodePattern, b_text)
         u_text = ''
         encodings = [] # stack of encodings
         defaultEncodingOnly = True
-        for i, part in enumerate(parts):
+        for i, b_part in enumerate(b_parts):
             if i % 3 == 0: # text block
                 encoding = encodings[-1] if encodings else defaultEncoding
-                text2 = part
+                b_text2 = b_part
                 if encoding == 'babylon-reference':
-                    refs = text2.split(';')
-                    for j, ref in enumerate(refs):
-                        ref = refs[j]
-                        if not ref:
-                            if j != len(refs)-1:
+                    b_refs = b_text2.split(b';')
+                    for i_ref, b_ref in enumerate(b_refs):
+                        if not b_ref:
+                            if i_ref != len(refs)-1:
                                 log.debug(
-                                    'decoding charset tags, text=%s\n'%text
-                                    'blank <charset c=t> character reference (%s)\n'%text2
+                                    'decoding charset tags, b_text=%s\n'%list(b_text) +
+                                    'blank <charset c=t> character reference (%s)\n'%list(b_text2)
                                 )
                             continue
-                        if not re.match('^[0-9a-fA-F]{4}$', ref):
+                        if not re.match(b'^[0-9a-fA-F]{4}$', b_ref):
                             log.debug(
-                                'decoding charset tags, text=%s\n'%text
-                                'invalid <charset c=t> character reference (%s)\n'%(, text2)
+                                'decoding charset tags, b_text=%s\n'%list(b_text) +
+                                'invalid <charset c=t> character reference (%s)\n'%list(b_text2)
                             )
                             continue
-                        code = int(ref, 16)
-                        u_text += chr(code)
+                        u_text += chr(int(b_ref, 16))
                 else:
-                    self.charReferencesStat(text2, encoding)
+                    self.charReferencesStat(b_text2, encoding)
                     if encoding == 'cp1252':
-                        text2 = replace_ascii_char_refs(text2, encoding)
+                        b_text2 = replace_ascii_char_refs(b_text2, encoding)
                     if self.strictStringConvertion:
                         try:
-                            u_text2 = text2.decode(encoding)
+                            u_text2 = b_text2.decode(encoding)
                         except UnicodeError:
                             log.debug(
-                                'decoding charset tags, text=%s\n'%text
-                                'fragment(%s)\n'%text2
+                                'decoding charset tags, b_text=%s\n'%list(b_text) +
+                                'fragment(%s)\n'%list(b_text2) +
                                 'conversion error:\n%s'%excMessage()
                             )
                             u_text2 = text2.decode(encoding, 'replace')
                     else:
-                        u_text2 = text2.decode(encoding, 'replace')
+                        u_text2 = b_text2.decode(encoding, 'replace')
                     u_text += u_text2
                     if encoding != defaultEncoding:
                         defaultEncodingOnly = False
             elif i % 3 == 1: # <charset...> or </charset>
-                if part.startswith('</'):
+                if b_part.startswith(b'</'):
                     # </charset>
                     if encodings:
                         encodings.pop()
                     else:
                         log.debug(
-                            'decoding charset tags, text=%s\n'%text
+                            'decoding charset tags, b_text=%s\n'%list(b_text) +
                             'unbalanced </charset> tag\n'
                         )
                 else:
                     # <charset c="?">
-                    c = parts[i+1].lower()
-                    if c == 't':
+                    b_type = b_parts[i+1].lower()## b_type is a bytes instance, with length 1
+                    if b_type == b't':
                         encodings.append('babylon-reference')
-                    elif c == 'u':
+                    elif b_type == b'u':
                         encodings.append('utf-8')
-                    elif c == 'k':
+                    elif b_type == b'k':
                         encodings.append(self.sourceEncoding)
-                    elif c == 'e':
+                    elif b_type == b'e':
                         encodings.append(self.sourceEncoding)
-                    elif c == 'g':
+                    elif b_type == b'g':
                         # gbk or gb18030 encoding (not enough data to make distinction)
                         encodings.append('gbk')
                     else:
                         log.debug(
-                            'decoding charset tags, text=%s\n'%text
-                            'unknown charset code = %s\n'%c
+                            'decoding charset tags, text=%s\n'%list(b_text) +
+                            'unknown charset code = %s\n'%ord(b_type)
                         )
                         # add any encoding to prevent 'unbalanced </charset> tag' error
                         encodings.append(defaultEncoding)
@@ -977,85 +1005,96 @@ class BglReader(object):
                 pass
         if encodings:
             log.debug(
-                'decoding charset tags, text=%s\n'%text
+                'decoding charset tags, text=%s\n'%text +
                 'unclosed <charset...> tag\n'
             )
         return u_text, defaultEncodingOnly
 
 
-    def processKey(self, word):
+    def processKey(self, b_word):
         """
-            word is a bytes instance
-            Return entry key in utf-8 encoding
+            b_word is a bytes instance
+            returns u_word_main, as str instance (utf-8 encoding)
         """
-        main_word, strip_cnt = stripDollarIndexes(word)
-        if strip_cnt > 1:
-            log.debug('processKey(%s):\nnumber of dollar indexes = %s'%(word, strip_cnt))
+        b_word_main, strip_count = stripDollarIndexes(b_word)
+        if strip_count > 1:
+            log.debug('processKey(%s):\nnumber of dollar indexes = %s'%(word, strip_count))
         # convert to unicode
         if self.strictStringConvertion:
             try:
-                u_main_word = main_word.decode(self.sourceEncoding)
+                u_word_main = b_word_main.decode(self.sourceEncoding)
             except UnicodeError:
                 log.debug(
                     'processKey(%s):\nconversion error:\n%s'%(word, excMessage())
                 )
-                u_main_word = main_word.decode(self.sourceEncoding, 'ignore')
+                u_word_main = b_word_main.decode(self.sourceEncoding, 'ignore')
         else:
-            u_main_word = main_word.decode(self.sourceEncoding, 'ignore')
+            u_word_main = b_word_main.decode(self.sourceEncoding, 'ignore')
 
         if self.processHtmlInKey:
-            #u_main_word_orig = u_main_word
-            u_main_word = strip_html_tags(u_main_word)
-            u_main_word = replace_html_entries_in_keys(u_main_word)
-            #if(re.match('.*[&<>].*', u_main_word_orig)):
-                #log.debug('original text: ' + u_main_word_orig + '\n' \
-                        #+ 'new      text: ' + u_main_word + '\n')
-        u_main_word = remove_control_chars(u_main_word)
-        u_main_word = replace_new_lines(u_main_word)
-        u_main_word = u_main_word.lstrip()
-        u_main_word = u_main_word.rstrip(self.keyRStripChars)
-        return u_main_word
+            #u_word_main_orig = u_word_main
+            u_word_main = strip_html_tags(u_word_main)
+            u_word_main = replace_html_entries_in_keys(u_word_main)
+            #if(re.match('.*[&<>].*', u_word_main_orig)):
+                #log.debug('original text: ' + u_word_main_orig + '\n' \
+                        #+ 'new      text: ' + u_word_main + '\n')
+        u_word_main = remove_control_chars(u_word_main)
+        u_word_main = replace_new_lines(u_word_main)
+        u_word_main = u_word_main.lstrip()
+        u_word_main = u_word_main.rstrip(self.keyRStripChars)
+        return u_word_main
 
-    def processAlternativeKey(self, raw_word, raw_key):
-        main_word, strip_cnt = stripDollarIndexes(raw_word)
+    def processAlternativeKey(self, b_word, b_key):
+        """
+            b_word is a bytes instance
+            returns u_word_main, as str instance (utf-8 encoding)
+        """
+        b_word_main, strip_count = stripDollarIndexes(b_word)
         # convert to unicode
         if self.strictStringConvertion:
             try:
-                u_main_word = main_word.decode(self.sourceEncoding)
+                u_word_main = b_word_main.decode(self.sourceEncoding)
             except UnicodeError:
                 log.debug(
-                    'processAlternativeKey(%s)\nkey = %s:\nconversion error:\n%s'%(raw_word, raw_key, excMessage())
+                    'processAlternativeKey(%s)\nkey = %s:\nconversion error:\n%s'%(b_word, b_key, excMessage())
                 )
-                u_main_word = main_word.decode(self.sourceEncoding, 'ignore')
+                u_word_main = b_word_main.decode(self.sourceEncoding, 'ignore')
         else:
-            u_main_word = main_word.decode(self.sourceEncoding, 'ignore')
+            u_word_main = b_word_main.decode(self.sourceEncoding, 'ignore')
 
         # strip '/' before words
-        u_main_word = re.sub(self.stripSlashAltKeyPattern, r'\1\2', u_main_word)
+        u_word_main = re.sub(self.stripSlashAltKeyPattern, r'\1\2', u_word_main)
 
         if self.processHtmlInKey:
-            #u_main_word_orig = u_main_word
-            u_main_word = strip_html_tags(u_main_word)
-            u_main_word = replace_html_entries_in_keys(u_main_word)
-            #if(re.match('.*[&<>].*', u_main_word_orig)):
-                #log.debug('original text: ' + u_main_word_orig + '\n' \
-                        #+ 'new      text: ' + u_main_word + '\n')
-        u_main_word = remove_control_chars(u_main_word)
-        u_main_word = replace_new_lines(u_main_word)
-        u_main_word = u_main_word.lstrip()
-        u_main_word = u_main_word.rstrip(self.keyRStripChars)
-        return u_main_word
+            #u_word_main_orig = u_word_main
+            u_word_main = strip_html_tags(u_word_main)
+            u_word_main = replace_html_entries_in_keys(u_word_main)
+            #if(re.match('.*[&<>].*', u_word_main_orig)):
+                #log.debug('original text: ' + u_word_main_orig + '\n' \
+                        #+ 'new      text: ' + u_word_main + '\n')
+        u_word_main = remove_control_chars(u_word_main)
+        u_word_main = replace_new_lines(u_word_main)
+        u_word_main = u_word_main.lstrip()
+        u_word_main = u_word_main.rstrip(self.keyRStripChars)
+        return u_word_main
 
 
 
 
 
-    def processDefi(self, defi, raw_key):
+    def processDefi(self, b_defi, b_key):
+        """
+            b_defi: bytes
+            b_key: bytes
+            
+            returns: u_defi_format
+        """
+        
         fields = DefinitionFields()
-        self.collectDefiFields(defi, raw_key, fields)
+        self.collectDefiFields(b_defi, b_key, fields)
 
 
-        fields.u_defi, fields.singleEncoding = self.decodeCharsetTags(fields.defi, self.targetEncoding)
+        fields.u_defi, fields.singleEncoding = self.decodeCharsetTags(fields.b_defi, self.targetEncoding)
         if fields.singleEncoding:
             fields.encoding = self.targetEncoding
         fields.u_defi = fixImgLinks(fields.u_defi)
@@ -1064,51 +1103,51 @@ class BglReader(object):
         fields.u_defi = normalize_new_lines(fields.u_defi)
         fields.u_defi = fields.u_defi.strip()
 
-        if fields.title:
-            fields.u_title, singleEncoding = self.decodeCharsetTags(fields.title, self.sourceEncoding)
+        if fields.b_title:
+            fields.u_title, singleEncoding = self.decodeCharsetTags(fields.b_title, self.sourceEncoding)
             fields.u_title = replace_html_entries(fields.u_title)
             fields.u_title = remove_control_chars(fields.u_title)
 
-        if fields.title_trans:
+        if fields.b_title_trans:
             # sourceEncoding or targetEncoding ?
             fields.u_title_trans, singleEncoding = self.decodeCharsetTags(
-                fields.title_trans,
+                fields.b_title_trans,
                 self.sourceEncoding,
             )
             fields.u_title_trans = replace_html_entries(fields.u_title_trans)
             fields.u_title_trans = remove_control_chars(fields.u_title_trans)
 
-        if fields.transcription_50:
-            if fields.transcription_50_code == 0x10:
+        if fields.b_transcription_50:
+            if fields.code_transcription_50 == 0x10:
                 # contains values like this (char codes):
                 # 00 18 00 19 00 1A 00 1B 00 1C 00 1D 00 1E 00 40 00 07
                 # this is not utf-16
                 # what is this?
                 pass
-            elif fields.transcription_50_code == 0x1b:
+            elif fields.code_transcription_50 == 0x1b:
                 fields.u_transcription_50, singleEncoding = self.decodeCharsetTags(
-                    fields.transcription_50,
+                    fields.b_transcription_50,
                     self.sourceEncoding,
                 )
                 fields.u_transcription_50 = replace_html_entries(fields.u_transcription_50)
                 fields.u_transcription_50 = remove_control_chars(fields.u_transcription_50)
-            elif fields.transcription_50_code == 0x18:
+            elif fields.code_transcription_50 == 0x18:
                 # incomplete text like:
                 # t c=T>02D0;</charset>g<charset c=T>0259;</charset>-
-                # This defi normally contains fields.transcription_60 in this case.
+                # This defi normally contains fields.b_transcription_60 in this case.
                 pass
             else:
                 log.debug('processDefi(%s)\n'
-                    'key = (%s):\ndefi field 50, unknown code: 0x{2:x}'%(
-                        defi,
-                        raw_key,
-                        fields.transcription_50_code,
+                    'b_key = %s:\ndefi field 50, unknown code: 0x{2:x}'%(
+                        b_defi,
+                        b_key,
+                        fields.code_transcription_50,
                     ))
 
-        if fields.transcription_60:
-            if fields.transcription_60_code == 0x1b:
+        if fields.b_transcription_60:
+            if fields.code_transcription_60 == 0x1b:
                 fields.u_transcription_60, singleEncoding = self.decodeCharsetTags(
-                    fields.transcription_60,
+                    fields.b_transcription_60,
                     self.sourceEncoding,
                 )
                 fields.u_transcription_60 = replace_html_entries(fields.u_transcription_60)
@@ -1116,48 +1155,50 @@ class BglReader(object):
                 fields.u_transcription_60 = fields.u_transcription_60.decode('utf-8')
             else:
                 log.debug('processDefi(%s)\n'
-                    'key = (%s):\ndefi field 60, unknown code: 0x{2:x}'%(
-                        defi,
-                        raw_key,
-                        fields.transcription_60_code,
+                    'b_key = %s:\ndefi field 60, unknown code: 0x{2:x}'%(
+                        b_defi,
+                        b_key,
+                        fields.code_transcription_60,
                     ))
 
-        if fields.field_1a:
+        if fields.b_field_1a:
             fields.u_field_1a, singleEncoding = self.decodeCharsetTags(
-                fields.field_1a,
+                fields.b_field_1a,
                 self.sourceEncoding,
             )
 
-        self.processDefiStat(fields, defi, raw_key)
+        self.processDefiStat(fields, b_defi, b_key)
 
-        defi_format = ''
+        u_defi_format = ''
         if fields.partOfSpeech or fields.u_title:
             if fields.partOfSpeech:
-                defi_format += '<font color="#%s">%s</font>'%(
+                u_defi_format += '<font color="#%s">%s</font>'%(
                     self.partOfSpeechColor,
                     xml_escape(fields.partOfSpeech),
                 )
             if fields.u_title:
-                if defi_format:
-                    defi_format += ' '
-                defi_format += fields.u_title
-            defi_format += '<br>\n'
+                if u_defi_format:
+                    u_defi_format += ' '
+                u_defi_format += fields.u_title
+            u_defi_format += '<br>\n'
         if fields.u_title_trans:
-            defi_format += fields.u_title_trans + '<br>\n'
+            u_defi_format += fields.u_title_trans + '<br>\n'
         if fields.u_transcription_50:
-            defi_format += '[%s]<br>\n'%(fields.u_transcription_50)
+            u_defi_format += '[%s]<br>\n'%fields.u_transcription_50
         if fields.u_transcription_60:
-            defi_format += '[%s]<br>\n'%(fields.u_transcription_60)
+            u_defi_format += '[%s]<br>\n'%fields.u_transcription_60
         if fields.u_defi:
-            defi_format += fields.u_defi
-        return defi_format
+            u_defi_format += fields.u_defi
+        return u_defi_format
 
-    def processDefiStat(self, fields, defi, raw_key):
+    def processDefiStat(self, fields, b_defi, b_key):
         pass
 
-    def findDefiFieldsStart(self, defi):
+    def findDefiFieldsStart(self, b_defi):
         """
-            Find the beginning of the definition trailing fields.
+            b_defi is a bytes instance
+            
+            Finds the beginning of the definition trailing fields.
 
             Return value is the index of the first chars of the field set,
             or -1 if the field set is not found.
@@ -1172,258 +1213,258 @@ class BglReader(object):
             return -1
         index = -1
         while True:
-            index = defi.find(b'\x14', index+1, -1)## -1: not the last character
+            index = b_defi.find(0x14, index+1, -1)## -1: not the last character
             if index == -1:
                 break
-            if defi[index+1] != b' ':
+            if b_defi[index+1] != 0x20: ## b' '[0] == 0x20
                 break
         return index
 
-    def collectDefiFields(self, defi, raw_key, fields):
+    def collectDefiFields(self, b_defi, b_key, fields):
         """
-            d0 - index of the '\x14 char in defi
-            d0 may be the last char of the string
             entry definition structure:
             <main definition>['\x14'[<one char - field code><field data, arbitrary length>]*]
         """
-        d0 = self.findDefiFieldsStart(defi)
+        ## d0 is index of the '\x14 char in b_defi, d0 may be the last char of the string
+        d0 = self.findDefiFieldsStart(b_defi)
         if d0 == -1:
-            fields.defi = defi
+            fields.b_defi = b_defi
             return
         
-        fields.defi = defi[:d0]
+        fields.b_defi = b_defi[:d0]
 
         i = d0 + 1
-        while i < len(defi):
+        while i < len(b_defi):
             if self.metadata2:
-                self.metadata2.defiTrailingFields[defi[i]] += 1
+                self.metadata2.defiTrailingFields[b_defi[i]] += 1
 
-            if defi[i] == '\x02': # part of speech # '\x02' <one char - part of speech>
+            if b_defi[i] == 0x02: # part of speech # '\x02' <one char - part of speech>
                 if fields.partOfSpeech:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nduplicate part of speech item'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nduplicate part of speech item'%list(b_key)
                     )
-                if i+1 >= len(defi):
+                if i+1 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ndefi ends after \\x02'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nb_defi ends after \\x02'%list(b_key)
                     )
                     return
-                posCode = defi[i+1]
+
+                posCode = b_defi[i+1]
                 
                 try:
                     fields.partOfSpeech = partOfSpeechByCode[posCode]
                 except KeyError:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\n'%raw_key
-                        'unknown part of speech. Char code = %#x'%posCode
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\n'%list(b_key) +
+                        'unknown part of speech code = %#x'%posCode
                     )
                     return
                 i += 2
-            elif defi[i] == '\x06': # \x06<one byte>
-                if fields.field_06:
+            elif b_defi[i] == 0x06: # \x06<one byte>
+                if fields.b_field_06:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nduplicate type 6'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nduplicate type 6'%list(b_key)
                     )
-                if i+1 >= len(defi):
+                if i+1 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ndefi ends after \\x06'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nb_defi ends after \\x06'%list(b_key)
                     )
                     return
-                fields.field_06 = defi[i+1]
+                fields.b_field_06 = b_defi[i+1]
                 i += 2
-            elif defi[i] == '\x07': # \x07<two bytes>
+            elif b_defi[i] == 0x07: # \x07<two bytes>
                 # Found in 4 Hebrew dictionaries. I do not understand.
-                if i+3 > len(defi):
+                if i+3 > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x07'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x07'%list(b_key)
                     )
                     return
-                fields.field_07 = defi[i+1:i+3]
+                fields.b_field_07 = b_defi[i+1:i+3]
                 i += 3
-            elif defi[i] == '\x13': # '\x13'<one byte - length><data>
+            elif b_defi[i] == 0x13: # '\x13'<one byte - length><data>
                 # known values:
                 # 03 06 0D C7
                 # 04 00 00 00 44
                 # ...
                 # 04 00 00 00 5F
-                if i + 1 >= len(defi):
+                if i + 1 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x13'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x13'%list(b_key)
                     )
                     return
-                Len = defi[i+1]
+                Len = b_defi[i+1]
                 i += 2
                 if Len == 0:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nblank data after \\x13'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nblank data after \\x13'%list(b_key)
                     )
                     continue
-                if i+Len > len(defi):
+                if i+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x13'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x13'%list(b_key)
                     )
                     return
-                fields.field_13 = defi[i:i+Len]
+                fields.b_field_13 = b_defi[i:i+Len]
                 i += Len
-            elif defi[i] == '\x18': # \x18<one byte - title length><entry title>
-                if fields.title:
+            elif b_defi[i] == 0x18: # \x18<one byte - title length><entry title>
+                if fields.b_title:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nduplicate entry title item'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nduplicate entry title item'%list(b_key)
                     )
-                if i+1 >= len(defi):
+                if i+1 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ndefi ends after \\x18'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nb_defi ends after \\x18'%list(b_key)
                     )
                     return
                 i += 1
-                Len = defi[i]
+                Len = b_defi[i]
                 i += 1
                 if Len == 0:
                     #log.debug(
-                    #    'collecting definition fields, defi = %s\n'%defi
-                    #    'key = (%s):\nblank entry title'%raw_key
+                    #    'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                    #    'b_key = %s:\nblank entry title'%list(b_key)
                     #)
                     continue
-                if i + Len > len(defi):
+                if i + Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntitle is too long'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntitle is too long'%list(b_key)
                     )
                     return
-                fields.title = defi[i:i+Len]
+                fields.b_title = b_defi[i:i+Len]
                 i += Len
-            elif defi[i] == '\x1A': # '\x1A'<one byte - length><text>
+            elif b_defi[i] == 0x1a: # '\x1a'<one byte - length><text>
                 # found only in Hebrew dictionaries, I do not understand.
-                if i + 1 >= len(defi):
+                if i + 1 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x1A'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x1A'%list(b_key)
                     )
                     return
-                Len = defi[i+1]
+                Len = b_defi[i+1]
                 i += 2
                 if Len == 0:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nblank data after \\x1A'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nblank data after \\x1A'%list(b_key)
                     )
                     continue
-                if i+Len > len(defi):
+                if i+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x1A'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x1A'%list(b_key)
                     )
                     return
-                fields.field_1a = defi[i:i+Len]
+                fields.b_field_1a = b_defi[i:i+Len]
                 i += Len
-            elif defi[i] == '\x28': # '\x28' <two bytes - length><html text>
+            elif b_defi[i] == 0x28: # '\x28' <two bytes - length><html text>
                 # title with transcription?
-                if i + 2 >= len(defi):
+                if i + 2 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x28'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x28'%list(b_key)
                     )
                     return
                 i += 1
-                Len = binStrToInt(defi[i:i+2])
+                Len = binStrToInt(b_defi[i:i+2])
                 i += 2
                 if Len == 0:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nblank data after \\x28'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nblank data after \\x28'%list(b_key)
                     )
                     continue
-                if i+Len > len(defi):
+                if i+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x28'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x28'%list(b_key)
                     )
                     return
-                fields.title_trans = defi[i:i+Len]
+                fields.b_title_trans = b_defi[i:i+Len]
                 i += Len
-            elif 0x40 <= defi[i] <= 0x4f: # [\x41-\x4f] <one byte> <text>
+            elif 0x40 <= b_defi[i] <= 0x4f: # [\x41-\x4f] <one byte> <text>
                 # often contains digits as text:
                 # 56
                 # &#0230;lps - key Alps
                 # 48@i
                 # has no apparent influence on the article
-                code = defi[i]
-                Len = defi[i] - 0x3f
-                if i+2+Len > len(defi):
+                code = b_defi[i]
+                Len = b_defi[i] - 0x3f
+                if i+2+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x40+'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x40+'%list(b_key)
                     )
                     return
                 i += 2
-                text = defi[i:i+Len]
+                b_text = b_defi[i:i+Len]
                 i += Len
-                log.debug('\nunknown defi trailing field %#x: %s'%(code, text))
-            elif defi[i] == '\x50': # \x50 <one byte> <one byte - length><data>
-                if i + 2 >= len(defi):
+                log.debug('\nunknown definition field %#x: b_text=%s'%(code, list(b_text)))
+            elif b_defi[i] == 0x50: # \x50 <one byte> <one byte - length><data>
+                if i + 2 >= len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x50'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x50'%list(b_key)
                     )
                     return
-                fields.transcription_50_code = defi[i+1]
-                Len = defi[i+2]
+                fields.code_transcription_50 = b_defi[i+1]
+                Len = b_defi[i+2]
                 i += 3
                 if Len == 0:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nblank data after \\x50'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nblank data after \\x50'%list(b_key)
                     )
                     continue
-                if i+Len > len(defi):
+                if i+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x50'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x50'%list(b_key)
                     )
                     return
-                fields.transcription_50 = defi[i:i+Len]
+                fields.b_transcription_50 = b_defi[i:i+Len]
                 i += Len
-            elif defi[i] == '\x60': # '\x60' <one byte> <two bytes - length> <text>
-                if i + 4 > len(defi):
+            elif b_defi[i] == 0x60: # '\x60' <one byte> <two bytes - length> <text>
+                if i + 4 > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x60'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x60'%list(b_key)
                     )
                     return
-                fields.transcription_60_code = defi[i+1]
+                fields.code_transcription_60 = b_defi[i+1]
                 i += 2
-                Len = binStrToInt(defi[i:i+2])
+                Len = binStrToInt(b_defi[i:i+2])
                 i += 2
                 if Len == 0:
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\nblank data after \\x60'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\nblank data after \\x60'%list(b_key)
                     )
                     continue
-                if i+Len > len(defi):
+                if i+Len > len(b_defi):
                     log.debug(
-                        'collecting definition fields, defi = %s\n'%defi
-                        'key = (%s):\ntoo few data after \\x60'%raw_key
+                        'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                        'b_key = %s:\ntoo few data after \\x60'%list(b_key)
                     )
                     return
-                fields.transcription_60 = defi[i:i+Len]
+                fields.b_transcription_60 = b_defi[i:i+Len]
                 i += Len
             else:
                 log.debug(
-                    'collecting definition fields, defi = %s\n'%defi
-                    'key = (%s):\n'%raw_key
-                    'unknown control char. Char code = {2:#X}'%defi[i]
+                    'collecting definition fields, b_defi = %s\n'%list(b_defi) +
+                    'b_key = %s:\n'%list(b_key) +
+                    'unknown control char. Char code = {2:#X}'%list(b_defi[i])
                 )
                 return
 

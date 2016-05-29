@@ -162,6 +162,8 @@ class DebugBglReader(BglReader):
         if self.msgLogPath:
             self.msgLogFile = open(self.msgLogPath, 'w')
 
+        self.charRefStatPattern = re.compile(b'(&#\\w+;)', re.I)
+
 
     def openGzip(self):
         with open(self._filename, 'rb') as bglFile:
@@ -221,30 +223,33 @@ class DebugBglReader(BglReader):
         BglReader.__del__(self)
 
     def readEntryWord(self, block, pos):
-        succeed, pos, word, raw_key = BglReader.readEntryWord(self, block, pos)
+        succeed, pos, u_word, b_word = BglReader.readEntryWord(self, block, pos)
         if not succeed:
             return
         self.rawDumpFileWriteText('\n\nblock type = %s\nkey = '%block.type)
-        self.rawDumpFileWriteData(raw_key)
+        self.rawDumpFileWriteData(b_word)
 
-    def readEntryDefi(self, block, pos, raw_key):
-        succeed, pos, defi, raw_defi = BglReader.readEntryDefi(self, block, pos, raw_key)
+    def readEntryDefi(self, block, pos, b_key):
+        succeed, pos, u_defi, b_defi = BglReader.readEntryDefi(self, block, pos, b_key)
         if not succeed:
             return
         self.rawDumpFileWriteText('\ndefi = ')
-        self.rawDumpFileWriteData(raw_defi)
+        self.rawDumpFileWriteData(b_defi)
 
     '''
-    def readEntryAlts(self, block, pos, raw_key, key):
-        succeed, pos, alts, raw_alts = BglReader.readEntryAlts(self, block, pos, raw_key, key)
+    def readEntryAlts(self, block, pos, b_key, key):
+        succeed, pos, alts, b_alts = BglReader.readEntryAlts(self, block, pos, b_key, key)
         if not succeed:
             return
-        for raw_alt in raw_alts:
+        for b_alt in b_alts:
             self.rawDumpFileWriteText('\nalt = ')
-            self.rawDumpFileWriteData(raw_alt)
+            self.rawDumpFileWriteData(b_alt)
     '''
 
-    def charReferencesStat(self, text, encoding):
+    def charReferencesStat(self, b_text, encoding):
+        """
+            b_text is bytes instance
+        """
         # &#0147;
         # &#x010b;
         if not self.metadata2:
@@ -254,14 +259,14 @@ class DebugBglReader(BglReader):
             self.metadata2.charRefs[encoding] = [0] * 257
         charRefs = self.metadata2.charRefs[encoding]
 
-        for index, part in enumerate(re.split(self.charRefStatPattern, text)):
+        for index, b_part in enumerate(re.split(self.charRefStatPattern, b_text)):
             if index % 2 != 1:
                 continue
             try:
-                if part[:3].lower() == '&#x':
-                    code = int(part[3:-1], 16)
+                if b_part[:3].lower() == '&#x':
+                    code = int(b_part[3:-1], 16)
                 else:
-                    code = int(part[2:-1])
+                    code = int(b_part[2:-1])
             except (ValueError, OverflowError):
                 continue
             if code <= 0:
@@ -269,19 +274,19 @@ class DebugBglReader(BglReader):
             code = min(code, 256)
             charRefs[code] += 1
 
-    def processDefiStat(self, fields, defi, raw_key):
+    def processDefiStat(self, fields, b_defi, b_key):
         if fields.singleEncoding:
             self.findAndPrintCharSamples(
-                fields.defi,
-                b'defi, key = ' + raw_key,
+                fields.b_defi,
+                'defi, key = %s' + b_key,
                 fields.encoding,
             )
             if self.metadata2:
                 self.metadata2.defiProcessedCount += 1
-                if isASCII(fields.defi):
+                if isASCII(fields.b_defi):
                     self.metadata2.defiAsciiCount += 1
                 try:
-                    fields.defi.decode('utf8')
+                    fields.b_defi.decode('utf8')
                 except UnicodeError:
                     pass
                 else:
@@ -397,33 +402,33 @@ class DebugBglReader(BglReader):
         with open(dumpPath, 'wb') as f:
             pickle.dump(self.metadata2, f)
 
-    def processDefiStat(self, fields, defi, raw_key):
-        BglReader.processDefiStat(self, fields, defi, raw_key)
+    def processDefiStat(self, fields, defi, b_key):
+        BglReader.processDefiStat(self, fields, defi, b_key)
 
-        if fields.title:
+        if fields.b_title:
             self.rawDumpFileWriteText('\ndefi title: ')
-            self.rawDumpFileWriteData(fields.title)
-        if fields.title_trans:
+            self.rawDumpFileWriteData(fields.b_title)
+        if fields.b_title_trans:
             self.rawDumpFileWriteText('\ndefi title trans: ')
-            self.rawDumpFileWriteData(fields.title_trans)
-        if fields.transcription_50:
+            self.rawDumpFileWriteData(fields.b_title_trans)
+        if fields.b_transcription_50:
             self.rawDumpFileWriteText(
-                '\ndefi transcription_50 (%#x): '%fields.transcription_50_code
+                '\ndefi transcription_50 (%#x): '%fields.code_transcription_50
             )
-            self.rawDumpFileWriteData(fields.transcription_50)
-        if fields.transcription_60:
-            self.rawDumpFileWriteText('\ndefi transcription_60 (%#x): '%fields.transcription_60_code)
-            self.rawDumpFileWriteData(fields.transcription_60)
-        if fields.field_1a:
+            self.rawDumpFileWriteData(fields.b_transcription_50)
+        if fields.b_transcription_60:
+            self.rawDumpFileWriteText('\ndefi transcription_60 (%#x): '%fields.code_transcription_60)
+            self.rawDumpFileWriteData(fields.b_transcription_60)
+        if fields.b_field_1a:
             self.rawDumpFileWriteText('\ndefi field_1a: ')
-            self.rawDumpFileWriteData(fields.field_1a)
-        if fields.field_13:
-            self.rawDumpFileWriteText('\ndefi field_13 bytes: ' + formatByteStr(fields.field_13))
-        if fields.field_07:
+            self.rawDumpFileWriteData(fields.b_field_1a)
+        if fields.b_field_13:
+            self.rawDumpFileWriteText('\ndefi field_13 bytes: ' + formatByteStr(fields.b_field_13))
+        if fields.b_field_07:
             self.rawDumpFileWriteText('\ndefi field_07: ')
-            self.rawDumpFileWriteData(fields.field_07)
-        if fields.field_06:
-            self.rawDumpFileWriteText('\ndefi field_06: %s'%fields.field_06)
+            self.rawDumpFileWriteData(fields.b_field_07)
+        if fields.b_field_06:
+            self.rawDumpFileWriteText('\ndefi field_06: %s'%fields.b_field_06)
 
 
 

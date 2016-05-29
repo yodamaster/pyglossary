@@ -20,11 +20,12 @@
 ## If not, see <http://www.gnu.org/licenses/gpl.txt>.
 
 import re
-from pyglossary.formats_common import log
+from pyglossary.plugins.formats_common import log
 
 
 entryPattern = re.compile('(?:&#x|&#|&)(\\w+);?', re.I)
 entryKeyPattern = re.compile('(?:&#x|&#|&)(\\w+);', re.I)
+asciiCharRefPattern = re.compile(b'(&#\\w+;)', re.I)
 
 
 def replace_html_entry_no_escape(matched):
@@ -195,22 +196,20 @@ def normalize_new_lines(text):
     )
 
 
-def replace_ascii_char_refs(text, encoding):
+def replace_ascii_char_refs(b_text, encoding):
     # &#0147;
     # &#x010b;
-    if log.isDebug(): assert isinstance(text, str)
-    pat = re.compile('(&#\\w+;)', re.I)
-    parts = re.split(pat, text)
-    for i in range(len(parts)):
-        if i % 2 != 1:
+    if log.isDebug(): assert isinstance(b_text, bytes)
+    b_parts = re.split(asciiCharRefPattern, b_text)
+    for i_part, b_part in enumerate(b_parts):
+        if i_part % 2 != 1:
             continue
         # reference
-        text2 = parts[i]
         try:
-            if text2[:3].lower() == '&#x':
-                code = int(text2[3:-1], 16)
+            if b_part[:3].lower() == '&#x':
+                code = int(b_part[3:-1], 16)
             else:
-                code = int(text2[2:-1])
+                code = int(b_part[2:-1])
             if code <= 0:
                 raise ValueError()
         except (ValueError, OverflowError):
@@ -218,8 +217,8 @@ def replace_ascii_char_refs(text, encoding):
         if code < 128 or code > 255:
             continue
         # no need to escape '<', '>', '&'
-        parts[i] = chr(code)
-    return ''.join(parts)
+        b_parts[i_part] = bytes([code])
+    return b''.join(b_parts)
 
 
 def fixImgLinks(text):
@@ -241,7 +240,7 @@ def fixImgLinks(text):
 
 
 def stripDollarIndexes(word):
-    if log.isDebug(): assert isinstance(text, bytes)
+    if log.isDebug(): assert isinstance(word, bytes)
     i = 0
     main_word = b''
     strip_cnt = 0 # number of sequences found

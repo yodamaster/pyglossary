@@ -22,6 +22,11 @@
 from .bgl_language import languageByCode
 from .bgl_charset import charsetByCode
 
+import pyglossary.gregorian as gregorian
+from pyglossary.text_utils import (
+    binStrToInt,
+)
+
 def decodeBglBinTime(binStr):
     jd1970 = gregorian.to_jd(1970, 1, 1)
     djd, hm = divmod(binStrToInt(binStr), 24*60)
@@ -37,7 +42,7 @@ def languageInfoDecode(valueBytes):
     intValue = binStrToInt(valueBytes)
     try:
         return languageByCode[intValue]
-    except IndexError
+    except IndexError:
         log.warning('read_type_3: unknown language code = %s'%intValue)
         return
 
