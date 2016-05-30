@@ -22,14 +22,15 @@
 from .bgl_language import languageByCode
 from .bgl_charset import charsetByCode
 
+from pyglossary.plugins.formats_common import log
 import pyglossary.gregorian as gregorian
 from pyglossary.text_utils import (
     binStrToInt,
 )
 
-def decodeBglBinTime(binStr):
+def decodeBglBinTime(b_value):
     jd1970 = gregorian.to_jd(1970, 1, 1)
-    djd, hm = divmod(binStrToInt(binStr), 24*60)
+    djd, hm = divmod(binStrToInt(b_value), 24*60)
     year, month, day = gregorian.jd_to(djd + jd1970)
     hour, minute = divmod(hm, 60)
     return '%.2d/%.2d/%.2d, %.2d:%.2d'%(year, month, day, hour, minute)
@@ -50,7 +51,7 @@ def charsetInfoDecode(b_value):
     value = b_value[0]
     try:
         return charsetByCode[value]
-    except IndexError:
+    except KeyError:
         log.warning('read_type_3: unknown charset %s'%value)
 
 def aboutInfoDecode(b_value):

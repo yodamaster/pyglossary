@@ -21,16 +21,18 @@
 
 import re
 from pyglossary.plugins.formats_common import log
+from pyglossary.xml_utils import xml_escape
 
 
 entryPattern = re.compile('(?:&#x|&#|&)(\\w+);?', re.I)
 entryKeyPattern = re.compile('(?:&#x|&#|&)(\\w+);', re.I)
 asciiCharRefPattern = re.compile(b'(&#\\w+;)', re.I)
 
+unkownHtmlEntries = set()
 
-def replace_html_entry_no_escape(matched):
+def replace_html_entry_no_escape(u_matched):
     """
-        matched: instance of _sre.SRE_Match
+        u_matched: instance of _sre.SRE_Match
         Replace character entity with the corresponding character
 
         Return the original string if conversion fails.
@@ -39,28 +41,30 @@ def replace_html_entry_no_escape(matched):
     import html.entities
     from pyglossary.html_utils import name2codepoint
 
-    text = matched.group(0)
-    name = matched.group(1)
-    res = None
-    if text[:2] == '&#':
+    u_text = u_matched.group(0)
+    u_name = u_matched.group(1)
+    if log.isDebug(): assert isinstance(u_text, str) and isinstance(u_name, str)
+
+    u_res = None
+    if u_text[:2] == '&#':
         # character reference
         try:
-            if text[:3].lower() == '&#x':
-                code = int(name, 16)
+            if u_text[:3].lower() == '&#x':
+                code = int(u_name, 16)
             else:
-                code = int(name)
+                code = int(u_name)
             if code <= 0:
                 raise ValueError()
-            res = chr(code)
+            u_res = chr(code)
         except (ValueError, OverflowError):
-            res = chr(0xFFFD) # replacement character
-    elif text[0] == '&':
+            u_res = chr(0xFFFD) # replacement character
+    elif u_text[0] == '&':
         # named entity
         try:
-            res = chr(html.entities.name2codepoint[name])
+            u_res = chr(html.entities.name2codepoint[u_name])
         except KeyError:
             try:
-                res = chr(name2codepoint[name.lower()])
+                u_res = chr(name2codepoint[u_name.lower()])
             except KeyError:
                 """
                     Babylon dictionaries contain a lot of non-standard entity references,
@@ -71,24 +75,26 @@ def replace_html_entry_no_escape(matched):
                     &csdot; despite other references like &amp; are replaced with corresponding
                     characters.
                 """
-                log.warning('unknown html entity %s'%text)
-                res = text
+                if not u_text in unkownHtmlEntries:
+                    log.warning('unknown html entity %s'%u_text)
+                    unkownHtmlEntries.add(u_text)
+                u_res = u_text
     else:
         raise ArgumentError()
-    return res
+    return u_res
 
-def replace_html_entry(matched):
+def replace_html_entry(u_matched):
     """
-        matched: instance of _sre.SRE_Match
+        u_matched: instance of _sre.SRE_Match
         Same as replace_html_entry_no_escape, but escapes result string
 
         Only <, >, & characters are escaped.
     """
-    res = replace_html_entry_no_escape(matched)
-    if matched.group(0) == res: # conversion failed
-        return res
+    u_res = replace_html_entry_no_escape(u_matched)
+    if u_matched.group(0) == u_res: # conversion failed
+        return u_res
     else:
-        return xml_escape(res)
+        return xml_escape(u_res)
 
 
 def replace_dingbat(matched):
@@ -114,85 +120,85 @@ def new_line_escape_string_callback(matched):
     return ch
 
 
-def replace_html_entries(text):
+def replace_html_entries(u_text):
     # &ldash;
     # &#0147;
     # &#x010b;
-    if log.isDebug(): assert isinstance(text, str)
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         entryPattern,
         replace_html_entry,
-        text,
+        u_text,
     )
 
-def replace_html_entries_in_keys(text):
+def replace_html_entries_in_keys(u_text):
     # &ldash;
     # &#0147;
     # &#x010b;
-    if log.isDebug(): assert isinstance(text, str)
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         entryKeyPattern,
         replace_html_entry_no_escape,
-        text,
+        u_text,
     )
 
 
 
 
-def new_line_escape_string(text):
+def new_line_escape_string(u_text):
     """
         convert text to c-escaped string:
         \ -> \\
         new line -> \n or \r
     """
-    if log.isDebug(): assert isinstance(text, str)
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         '[\\r\\n\\\\]',
         new_line_escape_string_callback,
-        text,
+        u_text,
     )
 
 
-def strip_html_tags(text):
+def strip_html_tags(u_text):
     if log.isDebug(): assert isinstance(text, str)
     return re.sub(
         '(?:<[/a-zA-Z].*?(?:>|$))+',
         ' ',
-        text,
+        u_text,
     )
 
 
-def remove_control_chars(text):
+def remove_control_chars(u_text):
     # \x09 - tab
     # \x0a - line feed
     # \x0b - vertical tab
     # \x0d - carriage return
-    if log.isDebug(): assert isinstance(text, str)
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         '[\x00-\x08\x0c\x0e-\x1f]',
         '',
-        text,
+        u_text,
     )
 
 
-def replace_new_lines(text):
-    if log.isDebug(): assert isinstance(text, str)
+def replace_new_lines(u_text):
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         '[\r\n]+',
         ' ',
-        text,
+        u_text,
     )
 
 
-def normalize_new_lines(text):
+def normalize_new_lines(u_text):
     """
         convert new lines to unix style and remove consecutive new lines
     """
-    if log.isDebug(): assert isinstance(text, str)
+    if log.isDebug(): assert isinstance(u_text, str)
     return re.sub(
         '[\r\n]+',
         '\n',
-        text,
+        u_text,
     )
 
 
@@ -221,7 +227,7 @@ def replace_ascii_char_refs(b_text, encoding):
     return b''.join(b_parts)
 
 
-def fixImgLinks(text):
+def fixImgLinks(u_text):
     """
         Fix img tag links
 
@@ -233,27 +239,27 @@ def fixImgLinks(text):
         Control characters \x1e and \x1f are useless in html text, so we may safely remove
         all of them, irrespective of context.
     """
-    if log.isDebug(): assert isinstance(text, str)
-    return text.replace('\x1e', '').replace('\x1f', '')
+    if log.isDebug(): assert isinstance(u_text, str)
+    return u_text.replace('\x1e', '').replace('\x1f', '')
 
 
 
 
-def stripDollarIndexes(word):
-    if log.isDebug(): assert isinstance(word, bytes)
+def stripDollarIndexes(b_word):
+    if log.isDebug(): assert isinstance(b_word, bytes)
     i = 0
-    main_word = b''
+    b_word_main = b''
     strip_cnt = 0 # number of sequences found
     # strip $<index>$ sequences
     while True:
-        d0 = word.find(b'$', i)
+        d0 = b_word.find(b'$', i)
         if d0 == -1:
-            main_word += word[i:]
+            b_word_main += b_word[i:]
             break
-        d1 = word.find(b'$', d0+1)
+        d1 = b_word.find(b'$', d0+1)
         if d1 == -1:
-            #log.debug('stripDollarIndexes(%s):\npaired $ is not found'%word)
-            main_word += word[i:]
+            #log.debug('stripDollarIndexes(%s):\npaired $ is not found'%b_word)
+            b_word_main += b_word[i:]
             break
         if d1 == d0+1:
             """
@@ -268,25 +274,25 @@ def stripDollarIndexes(word):
 
                 summary: we must remove any sequence of dollar signs longer than 1 chars
             """
-            #log.debug('stripDollarIndexes(%s):\nfound $$'%word)
-            main_word += word[i:d0]
+            #log.debug('stripDollarIndexes(%s):\nfound $$'%b_word)
+            b_word_main += b_word[i:d0]
             i = d1 + 1
-            while i < len(word) and word[i] == ord(b'$'):
+            while i < len(b_word) and b_word[i] == ord(b'$'):
                 i += 1
-            if i >= len(word):
+            if i >= len(b_word):
                 break
             continue
         ok = True
-        for x in word[d0+1:d1]:
+        for x in b_word[d0+1:d1]:
             if x not in b'0123456789':
-                #log.debug('stripDollarIndexes(%s):\nnon-digit between $$'%word)
+                #log.debug('stripDollarIndexes(%s):\nnon-digit between $$'%b_word)
                 ok = False
                 break
         if not ok:
-            main_word += word[i:d1]
+            b_word_main += b_word[i:d1]
             i = d1
             continue
-        if d1+1 < len(word) and word[d1+1] != ' ':
+        if d1+1 < len(b_word) and b_word[d1+1] != ' ':
             """
                 Examples:
                 make do$4$/make /do
@@ -294,13 +300,13 @@ def stripDollarIndexes(word):
                 volere$1$<BR><BR>See also <a href='file://ITAL-ENG VOLERE 1469-1470.pdf'>notes...</A>
                 Ihre$1$Ihres
             """
-            #log.debug('stripDollarIndexes(%s):\nsecond $ is followed by non-space'%word))
+            #log.debug('stripDollarIndexes(%s):\nsecond $ is followed by non-space'%b_word))
             pass
-        main_word += word[i:d0]
+        b_word_main += b_word[i:d0]
         i = d1+1
         strip_cnt += 1
 
-    return main_word, strip_cnt
+    return b_word_main, strip_cnt
 
 
 

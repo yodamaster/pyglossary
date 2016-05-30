@@ -686,8 +686,8 @@ class BglReader(object):
             returns None
         """
         code, b_value = binStrToInt(block.data[:2]), block.data[2:]
-        if not b_value:
-            return
+        if not b_value: return
+        #if not b_value.strip(b'\x00'): return ## FIXME
         
         try:
             key = infoKeysByCode[code]
@@ -955,7 +955,7 @@ class BglReader(object):
                     b_refs = b_text2.split(b';')
                     for i_ref, b_ref in enumerate(b_refs):
                         if not b_ref:
-                            if i_ref != len(refs)-1:
+                            if i_ref != len(b_refs)-1:
                                 log.debug(
                                     'decoding charset tags, b_text=%r\n'%b_text +
                                     'blank <charset c=t> character reference (%r)\n'%b_text2
@@ -1023,7 +1023,7 @@ class BglReader(object):
                 pass
         if encodings:
             log.debug(
-                'decoding charset tags, text=%s\n'%text +
+                'decoding charset tags, text=%s\n'%b_text +
                 'unclosed <charset...> tag\n'
             )
         return u_text, defaultEncodingOnly
@@ -1170,7 +1170,6 @@ class BglReader(object):
                 )
                 fields.u_transcription_60 = replace_html_entries(fields.u_transcription_60)
                 fields.u_transcription_60 = remove_control_chars(fields.u_transcription_60)
-                fields.u_transcription_60 = fields.u_transcription_60.decode('utf-8')
             else:
                 log.debug('processDefi(%s)\n'
                     'b_key = %s:\ndefi field 60, unknown code: 0x{2:x}'%(
