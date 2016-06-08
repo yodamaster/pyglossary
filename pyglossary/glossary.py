@@ -1012,16 +1012,16 @@ class Glossary(object):
 
     def progress(self, wordI, wordCount):
         self._continueFrom = wordI
-        if ui:
-            ui.progress(
+        if self.ui:
+            self.ui.progress(
                 (wordI + 1) / wordCount,
                 '%d / %d completed'%(wordI, wordCount),
             )
 
     def finished(self):
         self._continueFrom = 0
-        if ui:
-            ui.progressEnd()
+        if self.ui:
+            self.ui.progressEnd()
 
     ########################################
 

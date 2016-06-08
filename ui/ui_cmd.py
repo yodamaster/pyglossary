@@ -212,7 +212,6 @@ class UI(UIBase):
         self.reverseResume()
     def reverseResume(self, *args):
         ## update reverse configuration?
-        log.info('Continue reversing from index %d ...'%self.glos.continueFrom)
         try:
             self.glos.reverse(
                 **self.reverseKwArgs
