@@ -331,9 +331,6 @@ if os.sep != '/':
 readOptions = parseFormatOptionsStr(args.readOptions)
 writeOptions = parseFormatOptionsStr(args.writeOptions)
 
-if args.direct != None:
-    readOptions['direct'] = args.direct
-
 
 """
     examples for read and write options:
@@ -414,6 +411,7 @@ if ui_type == 'cmd':
         writeFormat=args.writeFormat,
         readOptions=readOptions,
         writeOptions=writeOptions,
+        direct=args.direct,
         reverse=args.reverse,
     ))
 if ui_type=='auto':

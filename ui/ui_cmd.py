@@ -212,6 +212,7 @@ class UI(UIBase):
         writeFormat = '',
         readOptions = None,
         writeOptions = None,
+        direct = None,
         reverse = False,
     ):
         if not readOptions:
@@ -261,6 +262,7 @@ class UI(UIBase):
             succeed = self.glos.convert(
                 ipath,
                 inputFormat=readFormat,
+                direct=direct,
                 outputFilename=opath,
                 outputFormat=writeFormat,
                 readOptions=readOptions,
