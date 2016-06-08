@@ -219,11 +219,19 @@ class Glossary(object):
 
         self._data = []
 
-        for reader in self._readers:
-            reader.close()
+        try:
+            readers = self._readers
+        except AttributeError:
+            pass
+        else:
+            for reader in readers:
+                reader.close()
         self._readers = []
 
         self._iter = None
+        self._entryFilters = []
+        self._sortKey = None
+        self._sortCacheSize = 1000
 
         self._filename = ''
         self.resPath = ''
@@ -235,15 +243,13 @@ class Glossary(object):
             info: OrderedDict instance, or None
                   no need to copy OrderedDict instance, we will not reference to it
         """
-        self._info = odict()
+        self.clear()
         if info:
             if not isinstance(info, (dict, odict)):
                 raise TypeError('Glossary: `info` has invalid type, dict or OrderedDict expected')
             for key, value in info.items():
                 self.setInfo(key, value)
 
-        self._data = []
-        self._readers = []
         '''
         self._data is a list of tuples with length 2 or 3:
             (word, definition)
@@ -256,17 +262,6 @@ class Glossary(object):
                 'x': xdxf
         '''
         self.ui = ui
-        self._filename = filename
-        self.resPath = resPath
-        self._defaultDefiFormat = 'm'
-
-        self._entryFilters = []
-        self._iter = None
-
-        self._sortKey = None
-        self._sortCacheSize = 1000
-        
-        self._paused = False
 
     def updateEntryFilters(self):
         self._entryFilters = []
@@ -1004,29 +999,7 @@ class Glossary(object):
 
     ###############################################################################
 
-    def getContinueFrom(self):
-        try:
-            continueFrom = self._continueFrom
-        except AttributeError:
-            return 0
-        if continueFrom < 0:
-            log.error('continueFrom = %s'%continueFrom)
-            continueFrom = 0
-        return continueFrom
-
-    def pause(self):
-        self._paused = True
-        return self.getContinueFrom()
-
-    def resume(self):
-        self._paused = False
-        return self.getContinueFrom()
-
-    def isPaused(self):
-        return self._paused
-
     def progress(self, wordI, wordCount):
-        self._continueFrom = wordI
         if self.ui:
             self.ui.progress(
                 (wordI + 1) / wordCount,
@@ -1034,7 +1007,6 @@ class Glossary(object):
             )
 
     def finished(self):
-        self._continueFrom = 0
         if self.ui:
             self.ui.progressEnd()
 
@@ -1142,6 +1114,14 @@ class Glossary(object):
         **kwargs
     ):
         """
+            This is a generator
+            Usage:
+                for wordIndex in glos.reverse(...):
+                    pass
+
+            Inside the `for` loop, you can pause by waiting (for input or a flag)
+                or stop by breaking
+            
             Potential keyword arguments:
                 words = None ## None, or list
                 reportStep = 300
@@ -1161,35 +1141,20 @@ class Glossary(object):
         if saveStep < 2:
             raise ValueError('saveStep must be more than 1')
 
-        log.info('Reversing to file "%s"'%savePath)
-
         ui = self.ui
-        continueFrom = self.resume()
 
-        appendMode = False        
-        if continueFrom == 0:
-            if ui:
-                ui.progressStart()
-                ui.progress(0.0, 'Starting...')
-        elif continueFrom > 0:
-            appendMode = True
-        
         if words:
             words = list(words)
         else:
             words = self.takeOutputWords()
 
         wordCount = len(words)
-
-        with open(savePath, 'a' if appendMode else 'w') as saveFile:
-            for wordI in range(continueFrom, wordCount):
+        log.info('Reversing to file "%s", number of words: %s'%(savePath, wordCount))
+        with open(savePath, 'w') as saveFile:
+            for wordI in range(wordCount):
                 word = words[wordI]
                 self.progress(wordI, wordCount)
 
-                if self.isPaused():
-                    saveFile.close() ## if with KeyboardInterrupt it will be closed? FIXME
-                    #thread.exit_thread()
-                    return False
                 if wordI % saveStep == 0 and wordI > 0:
                     saveFile.flush()
                 result = self.searchWordInDef(
@@ -1208,9 +1173,10 @@ class Glossary(object):
                         log.pretty(result, 'result = ')
                         return False
                     saveFile.write('%s\t%s\n'%(word, defi))
+                yield wordI
 
         self.finished()
-        return True
+        yield wordCount
 
 
 
