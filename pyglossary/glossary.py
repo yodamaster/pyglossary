@@ -228,6 +228,7 @@ class Glossary(object):
         self._filename = ''
         self.resPath = ''
         self._defaultDefiFormat = 'm'
+        self._progressbar = True
 
     def __init__(self, info=None, ui=None, filename='', resPath=''):
         """
@@ -431,6 +432,7 @@ class Glossary(object):
         filename,
         format='',
         direct=False,
+        progressbar=True,
         **options
     ):
         """
@@ -513,6 +515,7 @@ class Glossary(object):
         self._filename = filenameNoExt
         if not self.getInfo('name'):
             self.setInfo('name', split(filename)[1])
+        self._progressbar = progressbar
         
         try:
             Reader = self.readerClasses[format]
@@ -548,6 +551,18 @@ class Glossary(object):
             iterates over `reader` object and loads the whole data into self._data
             must call `reader.open(filename)` before calling this function
         """
+        progressbar = self._progressbar
+        wordCount = 0
+        if self._progressbar:
+            try:
+                wordCount = len(reader)
+            except Exception:
+                log.exception('')                
+            if not wordCount:
+                progressbar = False
+        if progressbar:
+            self.progress(0, wordCount)
+
         for entry in reader:
             if not entry:
                 continue
