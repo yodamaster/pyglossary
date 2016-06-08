@@ -159,13 +159,8 @@ class UI(UIBase):
             log.info('\nPlease wait...')
     def setText(self, text):
         self.pbar.widgets[0]=text
-    def progressStart(self):
-        self.pbar.start()
     def progress(self, rat, text=''):
         self.pbar.update(rat)
-    def progressEnd(self):
-        self.pbar.finish()
-        print('')
     def progressBuild(self):
         rot = pb.RotatingMarker()
         ## SyntaxError(invalid syntax) with python3 with unicode(u'█') argument ## FIXME

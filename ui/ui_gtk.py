@@ -721,19 +721,12 @@ class UI(gtk.Dialog, MyDialog, UIBase):
         pass
     
 
-    def progressStart(self):
-        while gtk.events_pending():
-            gtk.main_iteration_do(False)
     def progress(self, rat, text=None):
         if not text:
             text = '%%%d%s'%(rat*100, self.ptext)
         self.progressBar.set_fraction(rat)
         #self.progressBar.set_text(text)## not working
         self.status(text)
-        while gtk.events_pending():
-            gtk.main_iteration_do(False)
-    def progressEnd(self):
-        self.progress(1.0)
         while gtk.events_pending():
             gtk.main_iteration_do(False)
 
