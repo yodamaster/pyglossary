@@ -31,6 +31,7 @@ import traceback
 from pyglossary import core ## essential
 from pyglossary import VERSION
 from pyglossary.text_utils import startRed, endFormat
+from pyglossary.glossary import Glossary
 
 # the first thing to do is to set up logger.
 # other modules also using logger 'root', so it's essential to set it up prior
@@ -87,6 +88,7 @@ parser.add_argument(
         'tk',
         #'qt',
         'auto',
+        'none',
     ),
 )
 parser.add_argument(
@@ -399,7 +401,7 @@ ui_type = args.ui_type
 
 
 if args.inputFilename:
-    if args.outputFilename:
+    if args.outputFilename and ui_type != 'none':
         ui_type = 'cmd' ## silently? FIXME
 else:
     if ui_type == 'cmd':
@@ -407,7 +409,22 @@ else:
         exit(1)
 
 #try:
-if ui_type == 'cmd':
+if ui_type == 'none':
+    if args.reverse:
+        log.error('--reverse does not work with --ui=none')
+        sys.exit(1)
+    glos = Glossary()
+    glos.convert(
+        args.inputFilename,
+        inputFormat = args.inputFormat,
+        outputFilename = args.outputFilename,
+        outputFormat = args.outputFormat,
+        readOptions = readOptions,
+        writeOptions = writeOptions,
+        **convertOptions
+    )
+    sys.exit(0)
+elif ui_type == 'cmd':
     from ui import ui_cmd
     sys.exit(ui_cmd.UI().run(
         args.inputFilename,
