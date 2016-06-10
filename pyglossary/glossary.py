@@ -1,29 +1,26 @@
 # -*- coding: utf-8 -*-
-## glossary.py
-##
-## Copyright © 2008-2016 Saeed Rasooli <saeed.gnu@gmail.com> (ilius)
-## This file is part of PyGlossary project, https://github.com/ilius/pyglossary
-##
-## This program is a free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; either version 3, or (at your option)
-## any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-## GNU General Public License for more details.
-##
-## You should have received a copy of the GNU General Public License along
-## with this program. Or on Debian systems, from /usr/share/common-licenses/GPL
-## If not, see <http://www.gnu.org/licenses/gpl.txt>.
+# glossary.py
+#
+# Copyright © 2008-2016 Saeed Rasooli <saeed.gnu@gmail.com> (ilius)
+# This file is part of PyGlossary project, https://github.com/ilius/pyglossary
+#
+# This program is a free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program. Or on Debian systems, from /usr/share/common-licenses/GPL
+# If not, see <http://www.gnu.org/licenses/gpl.txt>.
 
 from . import VERSION
 
-homePage = 'https://github.com/ilius/pyglossary'
-
 import logging
-log = logging.getLogger('root')
 
 import sys
 
@@ -46,7 +43,6 @@ from collections import Counter
 from collections import OrderedDict as odict
 
 import io
-file = io.BufferedReader
 
 from .flags import *
 from . import core
@@ -60,14 +56,15 @@ from .text_utils import (
 )
 from .os_utils import indir
 
-#import warnings
-#warnings.resetwarnings()## what for? FIXME
+
+homePage = 'https://github.com/ilius/pyglossary'
+log = logging.getLogger('root')
+
+file = io.BufferedReader
 
 
-
-get_ext = lambda path: splitext(path)[1].lower()
-
-
+def get_ext(path):
+    return splitext(path)[1].lower()
 
 
 class Glossary(object):
@@ -76,13 +73,13 @@ class Glossary(object):
     Use `glos.addEntry(word, defi, [defiFormat])`
         where both word and defi can be list (including alternates) or string
     See help(glos.addEntry)
-    
+
     Use `for entry in glos:` to iterate over entries (glossary data)
     See help(pyglossary.entry.Entry) for details
 
     """
 
-    ## Should be changed according to plugins? FIXME
+    # Should be changed according to plugins? FIXME
     infoKeysAliasDict = {
         'title': 'name',
         'bookname': 'name',
@@ -98,7 +95,7 @@ class Glossary(object):
         ##
         'license': 'copyright',
     }
-    plugins = {} ## format => pluginModule
+    plugins = {}  # format => pluginModule
     readFormats = []
     writeFormats = []
     readFunctions = {}
@@ -118,7 +115,9 @@ class Glossary(object):
 
     @classmethod
     def loadPlugins(cls, directory):
-        """executed on startup.  as name implies, loads plugins from directory."""
+        """
+        executed on startup.  as name implies, loads plugins from directory
+        """
         log.debug('loading plugins from directory: %r' % directory)
         if not isdir(directory):
             log.error('invalid plugin directory: %r' % directory)
@@ -131,7 +130,6 @@ class Glossary(object):
 
     @classmethod
     def loadPlugin(cls, pluginName):
-        #log.debug('loading plugin %s' % pluginName)
         try:
             plugin = __import__(pluginName)
         except Exception as e:
@@ -139,7 +137,7 @@ class Glossary(object):
             return
 
         if (not hasattr(plugin, 'enable')) or (not plugin.enable):
-            log.debug('plugin disabled or not a plugin: %s.  skipping...' % pluginName)
+            log.warning('plugin disabled or not a plugin: %s' % pluginName)
             return
 
         format = plugin.format
@@ -164,8 +162,6 @@ class Glossary(object):
         cls.formatsExt[format] = extentions
         cls.formatsDesc[format] = desc
 
-        ###################################################
-
         hasReadSupport = False
         try:
             Reader = plugin.Reader
@@ -180,10 +176,10 @@ class Glossary(object):
                 '__iter__',
             ):
                 if not hasattr(Reader, attr):
-                    log.error('invalid Reader class in "%s" plugin, no "%s" method'%(
-                        format,
-                        attr,
-                    ))
+                    log.error(
+                        'invalid Reader class in "%s" plugin' % format +
+                        ', no "%s" method' % attr
+                    )
                     break
             else:
                 cls.readerClasses[format] = Reader
@@ -202,16 +198,17 @@ class Glossary(object):
             cls.readDesc.append(desc)
             cls.formatsReadOptions[format] = getattr(plugin, 'readOptions', [])
 
-        ###################################################
-
         if hasattr(plugin, 'write'):
             cls.writeFunctions[format] = plugin.write
             cls.writeFormats.append(format)
             cls.writeExt.append(extentions)
             cls.writeDesc.append(desc)
-            cls.formatsWriteOptions[format] = getattr(plugin, 'writeOptions', [])
+            cls.formatsWriteOptions[format] = getattr(
+                plugin,
+                'writeOptions',
+                []
+            )
 
-        #log.debug('plugin loaded OK: %s' % pluginName)
         return plugin
 
     def clear(self):
@@ -240,13 +237,17 @@ class Glossary(object):
 
     def __init__(self, info=None, ui=None):
         """
-            info: OrderedDict instance, or None
-                  no need to copy OrderedDict instance, we will not reference to it
+        info: OrderedDict instance, or None
+              no need to copy OrderedDict instance,
+              we will not reference to it
         """
         self.clear()
         if info:
             if not isinstance(info, (dict, odict)):
-                raise TypeError('Glossary: `info` has invalid type, dict or OrderedDict expected')
+                raise TypeError(
+                    'Glossary: `info` has invalid type'
+                    ', dict or OrderedDict expected'
+                )
             for key, value in info.items():
                 self.setInfo(key, value)
 
@@ -254,7 +255,8 @@ class Glossary(object):
         self._data is a list of tuples with length 2 or 3:
             (word, definition)
             (word, definition, defiFormat)
-            where both word and definition can be a string, or list (containing alternates)
+            where both word and definition can be a string, or list
+                (containing word and alternates)
 
             defiFormat: format of the definition:
                 'm': plain text
@@ -281,8 +283,8 @@ class Glossary(object):
         self._entryFilters.append(NonEmptyWordFilter(self))
         self._entryFilters.append(NonEmptyDefiFilter(self))
 
-
-    __str__ = lambda self: 'glossary.Glossary'
+    def __str__(self):
+        return 'glossary.Glossary'
 
     def addEntryObj(self, entry):
         self._data.append(entry.getRaw())
@@ -314,7 +316,7 @@ class Glossary(object):
                 try:
                     wordCount = len(reader)
                 except Exception:
-                    log.exception('')                
+                    log.exception('')
                 if wordCount:
                     progressbar = True
             if progressbar:
@@ -326,7 +328,6 @@ class Glossary(object):
                         self.progress(index, wordCount)
             finally:
                 reader.close()
-
 
     def _applyEntryFiltersGen(self, gen):
         for entry in gen:
@@ -341,19 +342,22 @@ class Glossary(object):
 
     def __iter__(self):
         if self._iter is None:
-            log.error('Trying to iterate over a blank Glossary, must call `glos.read` first')
+            log.error(
+                'Trying to iterate over a blank Glossary'
+                ', must call `glos.read` first'
+            )
             return iter([])
         return self._iter
 
     def iterEntryBuckets(self, size):
         """
-            iterate over buckets of entries, with size `size`
-            For example:
-                for bucket in glos.iterEntryBuckets(100):
-                    assert len(bucket) == 100
-                    for entry in bucket:
-                        print(entry.getWord())
-                    print('-----------------')
+        iterate over buckets of entries, with size `size`
+        For example:
+            for bucket in glos.iterEntryBuckets(100):
+                assert len(bucket) == 100
+                for entry in bucket:
+                    print(entry.getWord())
+                print('-----------------')
         """
         bucket = []
         for entry in self:
@@ -369,23 +373,24 @@ class Glossary(object):
     def getDefaultDefiFormat(self):
         return self._defaultDefiFormat
 
-
-    __len__ = lambda self: len(self._data) + sum(
-        len(reader) for reader in self._readers
-    )
+    def __len__(self):
+        return len(self._data) + sum(
+            len(reader) for reader in self._readers
+        )
 
     def infoKeys(self):
         return list(self._info.keys())
 
     def getMostUsedDefiFormats(self, count=None):
         return Counter([
-            entry.getDefiFormat() \
+            entry.getDefiFormat()
             for entry in self
         ]).most_common(count)
 
-    #def formatInfoKeys(self, format):## FIXME
+    # def formatInfoKeys(self, format):# FIXME
 
-    iterInfo = lambda self: self._info.items()
+    def iterInfo(self):
+        return self._info.items()
 
     def getInfo(self, key):
         key = str(key)
@@ -393,13 +398,12 @@ class Glossary(object):
         try:
             key = self.infoKeysAliasDict[key.lower()]
         except KeyError:
-            #log.warning('uknown info key: %s'%key)## FIXME
             pass
 
-        return self._info.get(key, '')## '' or None as defaul?## FIXME
-        
+        return self._info.get(key, '')  # '' or None as default? FIXME
+
     def setInfo(self, key, value):
-        ## FIXME
+        #  FIXME
         origKey = key
         key = fixUtf8(key)
         value = fixUtf8(value)
@@ -407,18 +411,18 @@ class Glossary(object):
         try:
             key = self.infoKeysAliasDict[key.lower()]
         except KeyError:
-            #log.warning('uknown info key: %s'%key)## FIXME
             pass
 
         if origKey != key:
-            log.debug('setInfo: %s -> %s'%(origKey, key))
+            log.debug('setInfo: %s -> %s' % (origKey, key))
 
         self._info[key] = value
 
     def getExtraInfos(self, excludeKeys):
         """
-            excludeKeys: a list of (basic) info keys to be excluded
-            returns an OrderedDict including the rest of info keys, with associated values
+        excludeKeys: a list of (basic) info keys to be excluded
+        returns an OrderedDict including the rest of info keys,
+                with associated values
         """
         excludeKeySet = set()
         for key in excludeKeys:
@@ -442,7 +446,7 @@ class Glossary(object):
         else:
             return default
 
-    #################################################################################
+    # ________________________________________________________________________#
 
     def read(
         self,
@@ -453,58 +457,69 @@ class Glossary(object):
         **options
     ):
         """
-            filename (str): name/path of input file
-            format (str): name of inout format, or '' to detect from file extention
-            direct (bool): enable direct mode
-
+        filename (str): name/path of input file
+        format (str): name of inout format,
+                      or '' to detect from file extention
+        direct (bool): enable direct mode
         """
-        ## don't allow direct=False when there are readers (read is called before with direct=True)
+        # don't allow direct=False when there are readers
+        # (read is called before with direct=True)
         if self._readers and not direct:
             raise ValueError(
-                'there are already %s readers, you can not read with direct=False mode'%len(self._readers)
+                'there are already %s readers' % len(self._readers) +
+                ', you can not read with direct=False mode'
             )
 
         self.updateEntryFilters()
         ###
-        delFile=False
+        delFile = False
         ext = get_ext(filename)
         if ext in ('.gz', '.bz2', '.zip'):
-            if ext=='.bz2':
+            if ext == '.bz2':
                 output, error = subprocess.Popen(
                     ['bzip2', '-dk', filename],
                     stdout=subprocess.PIPE,
                 ).communicate()
-                ## -k ==> keep original bz2 file
-                ## bunzip2 ~= bzip2 -d
+                # -k ==> keep original bz2 file
+                # bunzip2 ~= bzip2 -d
                 if error:
-                    log.error('%s\nfail to decompress file "%s"'%(error, filename))
+                    log.error(
+                        error + '\n' +
+                        'failed to decompress file "%s"' % filename
+                    )
                     return False
                 else:
                     filename = filename[:-4]
                     ext = get_ext(filename)
                     delFile = True
-            elif ext=='.gz':
+            elif ext == '.gz':
                 output, error = subprocess.Popen(
                     ['gzip', '-dc', filename],
                     stdout=subprocess.PIPE,
                 ).communicate()
-                ## -c ==> write to stdout (because we want to keep original gz file)
-                ## gunzip ~= gzip -d
+                # -c ==> write to stdout (we want to keep original gz file)
+                # gunzip ~= gzip -d
                 if error:
-                    log.error('%s\nfail to decompress file "%s"'%(error, filename))
+                    log.error(
+                        error + '\n' +
+                        'failed to decompress file "%s"' % filename
+                    )
                     return False
                 else:
                     filename = filename[:-3]
                     open(filename, 'w').write(output)
                     ext = get_ext(filename)
                     delFile = True
-            elif ext=='.zip':
+            elif ext == '.zip':
                 output, error = subprocess.Popen(
                     ['unzip', filename, '-d', dirname(filename)],
                     stdout=subprocess.PIPE,
                 ).communicate()
                 if error:
-                    log.error('%s\nfail to decompress file "%s"'%(error, filename))
+                    log.error(
+                        error + '\n' +
+                        'failed to decompress file "%s"' % filename
+                    )
                     return False
                 else:
                     filename = filename[:-4]
@@ -515,14 +530,17 @@ class Glossary(object):
                 if ext in Glossary.formatsExt[key]:
                     format = key
             if not format:
-                #if delFile:
+                # if delFile:
                 #    os.remove(filename)
-                log.error('Unknown extension "%s" for read support!'%ext)
+                log.error('Unknown extension "%s" for read support!' % ext)
                 return False
         validOptionKeys = self.formatsReadOptions[format]
         for key in list(options.keys()):
-            if not key in validOptionKeys:
-                log.error('Invalid read option "%s" given for %s format'%(key, format))
+            if key not in validOptionKeys:
+                log.error(
+                    'Invalid read option "%s" ' % key +
+                    'given for %s format' % format
+                )
                 del options[key]
 
         filenameNoExt, ext = splitext(filename)
@@ -533,18 +551,21 @@ class Glossary(object):
         if not self.getInfo('name'):
             self.setInfo('name', split(filename)[1])
         self._progressbar = progressbar
-        
+
         try:
             Reader = self.readerClasses[format]
         except KeyError:
             if direct:
-                log.warning('no `Reader` class found in %s plugin, falling back to indirect mode'%format)
+                log.warning(
+                    'no `Reader` class found in %s plugin' % format +
+                    ', falling back to indirect mode'
+                )
             result = self.readFunctions[format].__call__(
                 self,
                 filename,
                 **options
             )
-            #if not result:## FIXME
+            # if not result:## FIXME
             #    return False
             if delFile:
                 os.remove(filename)
@@ -554,7 +575,8 @@ class Glossary(object):
             if direct:
                 self._readers.append(reader)
                 log.info(
-                    'using Reader class from %s plugin for direct conversion without loading into memory'%format
+                    'using Reader class from %s plugin' % format +
+                    ' for direct conversion without loading into memory'
                 )
             else:
                 self.loadReader(reader)
@@ -565,8 +587,8 @@ class Glossary(object):
 
     def loadReader(self, reader):
         """
-            iterates over `reader` object and loads the whole data into self._data
-            must call `reader.open(filename)` before calling this function
+        iterates over `reader` object and loads the whole data into self._data
+        must call `reader.open(filename)` before calling this function
         """
         wordCount = 0
         progressbar = False
@@ -574,7 +596,7 @@ class Glossary(object):
             try:
                 wordCount = len(reader)
             except Exception:
-                log.exception('')                
+                log.exception('')
             if wordCount:
                 progressbar = True
         if progressbar:
@@ -592,9 +614,9 @@ class Glossary(object):
 
     def _inactivateDirectMode(self):
         """
-            loads all of `self._readers` into `self._data`
-            closes readers
-            and sets self._readers to []
+        loads all of `self._readers` into `self._data`
+        closes readers
+        and sets self._readers to []
         """
         for reader in self._readers:
             self.loadReader(reader)
@@ -602,13 +624,14 @@ class Glossary(object):
 
     def _updateIter(self, sort=False):
         """
-            updates self._iter
-            depending on:
-                1- Wheather or not direct mode is On (self._readers not empty) or Off (self._readers empty)
-                2- Wheather sort is True, and if it is, checks for self._sortKey and self._sortCacheSize
+        updates self._iter
+        depending on:
+            1- Wheather or not direct mode is On (self._readers not empty)
+                or Off (self._readers empty)
+            2- Wheather sort is True, and if it is,
+                checks for self._sortKey and self._sortCacheSize
         """
-        #log.debug('_updateIter: %s readers, %s loaded entries'%(len(self._readers), len(self._data)))
-        if self._readers:## direct mode
+        if self._readers:  # direct mode
             if sort:
                 sortKey = self._sortKey
                 cacheSize = self._sortCacheSize
@@ -625,14 +648,13 @@ class Glossary(object):
             gen = self._loadedEntryGen()
 
         self._iter = self._applyEntryFiltersGen(gen)
-        #log.debug('self._iter=%s'%self._iter)
 
     def sortWords(self, key=None, cacheSize=None):
-        ## only sort by main word, or list of words + alternates? FIXME
+        # only sort by main word, or list of words + alternates? FIXME
         if self._readers:
             self._sortKey = key
             if cacheSize:
-                self._sortCacheSize = cacheSize ## FIXME
+                self._sortCacheSize = cacheSize  # FIXME
         else:
             self._data.sort(
                 key=Entry.getRawEntrySortKey(key),
@@ -649,10 +671,10 @@ class Glossary(object):
         **options
     ):
         """
-            sort (bool): True (enable sorting), False (disable sorting), None (auto, get from UI)
-            sortKey (callable or None):
-                key function for sorting
-                takes a word as argument, which is str or list (with alternates)
+        sort (bool): True (enable sorting), False (disable sorting), None (auto, get from UI)
+        sortKey (callable or None):
+            key function for sorting
+            takes a word as argument, which is str or list (with alternates)
         """
         if not filename:
             filename = self._filename
@@ -776,8 +798,8 @@ class Glossary(object):
 
     def archiveOutDir(self, filename, archiveType):
         """
-            filename is the existing file path
-            archiveType is the archive extention (without dot): 'gz', 'bz2', 'zip'
+        filename is the existing file path
+        archiveType is the archive extention (without dot): 'gz', 'bz2', 'zip'
         """
         try:
             os.remove('%s.%s'%(filename, archiveType))
@@ -858,8 +880,7 @@ class Glossary(object):
         return True
 
 
-    #################################################################################
-
+    # ________________________________________________________________________#
 
     def writeTxt(
         self,
@@ -949,7 +970,7 @@ class Glossary(object):
         newline = '<br>'
         infoDefLine = 'CREATE TABLE dbinfo ('
         infoValues = []
-        #######################
+
         if not infoKeys:
             infoKeys = [
                 'dbname',
@@ -962,7 +983,7 @@ class Glossary(object):
                 'category',
                 'description',
             ]
-        ######################
+
         for key in infoKeys:
             value = self.getInfo(key)
             value = value.replace('\'', '\'\'')\
@@ -971,7 +992,7 @@ class Glossary(object):
                                .replace('\n', newline)
             infoValues.append('\'' + value + '\'')
             infoDefLine += '%s char(%d), '%(key, len(value))
-        ######################
+
         infoDefLine = infoDefLine[:-2] + ');'
         yield infoDefLine
 
@@ -1002,8 +1023,7 @@ class Glossary(object):
             yield 'END TRANSACTION;'
         yield 'CREATE INDEX ix_word_w ON word(w COLLATE NOCASE);'
 
-    ###################################################################
-
+    # ________________________________________________________________________#
 
     def takeOutputWords(self, minWordLen=3):
         wordPattern = re.compile('[\w]{%d,}'%minWordLen, re.U)
@@ -1015,8 +1035,7 @@ class Glossary(object):
             ))
         return sorted(words)
 
-
-    ###############################################################################
+    # ________________________________________________________________________#
 
     def progressInit(self, *args):
         if self.ui:
@@ -1035,7 +1054,7 @@ class Glossary(object):
         if self.ui:
             self.ui.progressEnd()
 
-    ########################################
+    # ________________________________________________________________________#
 
     def searchWordInDef(
         self,
@@ -1139,26 +1158,26 @@ class Glossary(object):
         **kwargs
     ):
         """
-            This is a generator
-            Usage:
-                for wordIndex in glos.reverse(...):
-                    pass
+        This is a generator
+        Usage:
+            for wordIndex in glos.reverse(...):
+                pass
 
-            Inside the `for` loop, you can pause by waiting (for input or a flag)
-                or stop by breaking
-            
-            Potential keyword arguments:
-                words = None ## None, or list
-                reportStep = 300
-                saveStep = 1000
-                savePath = ''
-                matchWord = True
-                sepChars = '.,،'
-                maxNum = 100
-                minRel = 0.0
-                minWordLen = 3
-                includeDefs = False
-                showRel = 'None' ## allowed values: 'None' | 'Percent' | 'Percent At First'
+        Inside the `for` loop, you can pause by waiting (for input or a flag)
+            or stop by breaking
+        
+        Potential keyword arguments:
+            words = None ## None, or list
+            reportStep = 300
+            saveStep = 1000
+            savePath = ''
+            matchWord = True
+            sepChars = '.,،'
+            maxNum = 100
+            minRel = 0.0
+            minWordLen = 3
+            includeDefs = False
+            showRel = 'None' ## allowed values: 'None' | 'Percent' | 'Percent At First'
         """
         if not savePath:
             savePath = self.getInfo('name') + '.txt'
