@@ -9,13 +9,10 @@ extentions = ['.sql']
 readOptions = []
 writeOptions = []
 
+
 def write(glos, filename):
     with open(filename, 'w') as fp:
         for line in glos.iterSqlLines(
             transaction=False,
         ):
             fp.write(line + '\n')
-
-
-
-
