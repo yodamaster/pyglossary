@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import logging
-log = logging.getLogger('root')
-
 from formats_common import *
 
 enable = True
@@ -21,19 +18,24 @@ infoKeys = [
     'copyright',
 ]
 
+
 def read(glos, filename):
     glos.setDefaultDefiFormat('h')
     fileObj = FileLineWrapper(open(filename))
     lineStack = []
+
     def addDataEntry(lineStack):
         if not lineStack:
             return
         if len(lineStack) < 2:
-            log.error('invalid block near line %s in file %s'%(fileObj.line, filename))
+            log.error(
+                'invalid block near line %s' % fileObj.line +
+                ' in file %s' % filename
+            )
             return
         word = lineStack[0]
         defi = '\n'.join(lineStack[1:])
-        defi = defi.replace('<br/>', '\n') ## FIXME
+        defi = defi.replace('<br/>', '\n')  # FIXME
 
         word = [p.strip() for p in word.split('|')]
 
@@ -54,7 +56,7 @@ def read(glos, filename):
         key = parts[0].lower()
         value = ' '.join(parts[1:]).strip()
         glos.setInfo(key, value)
-    ## info lines finished
+    # info lines finished
 
     for line in fileObj:
         line = line.strip()
@@ -67,12 +69,11 @@ def read(glos, filename):
     addDataEntry(lineStack)
 
 
-
 def write(glos, filename):
     g = glos
     newline = '\n'
     head = newline.join([
-        '###%s: %s'%(
+        '###%s: %s' % (
             key.capitalize(),
             g.getInfo(key),
         )
@@ -89,9 +90,3 @@ def write(glos, filename):
         ext='.ldf',
         head=head,
     )
-
-
-
-
-
-
