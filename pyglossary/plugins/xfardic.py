@@ -20,13 +20,14 @@ infoKeys = (
     'description',
 )
 
+
 def read(glos, filename):
     from xml.etree.ElementTree import XML, tostring
     from pyglossary.xml_utils import xml_unescape
     with open(filename, 'r') as fp:
         xdb = XML(fp.read())
     for elem in xdb:
-        if elem.tag == 'xfardic':## first element
+        if elem.tag == 'xfardic':  # first element
             for infoElem in elem:
                 if infoElem.text:
                     glos.setInfo(infoElem.tag, infoElem.text)
@@ -39,7 +40,7 @@ def read(glos, filename):
             defi = xml_unescape(defi)
             glos.addEntry(word, defi)
         else:
-            log.error('unknown tag %s'%elem.tag)
+            log.error('unknown tag %s' % elem.tag)
 
 
 def write(glos, filename):
@@ -53,11 +54,11 @@ def write(glos, filename):
         words = entry.getWords()
         word, alts = words[0], words[1:]
         defi = entry.getDefi()
-        #fp.write("<word><in>"+word+"</in><out>"+ defi+"</out></word>\n")
-        fp.write('<word>\n    <in>%s</in>\n'%xml_escape(word))
+        # fp.write("<word><in>"+word+"</in><out>"+ defi+"</out></word>\n")
+        fp.write('<word>\n    <in>%s</in>\n' % xml_escape(word))
         for alt in alts:
-            fp.write('    <alt>%s</alt>\n'%xml_escape(alt))
-        fp.write('    <out>%s</out>\n</word>\n'%xml_escape(defi))
+            fp.write('    <alt>%s</alt>\n' % xml_escape(alt))
+        fp.write('    <out>%s</out>\n</word>\n' % xml_escape(defi))
     fp.write("</words>\n")
     fp.close()
 
@@ -81,7 +82,9 @@ def write_2(glos, filename):
         try:
             tmpXmlFile.characters(defi)
         except:
-            log.exception('While writing xdb file, an error on word "%s":'%word)
+            log.exception(
+                'While writing xdb file, an error on word "%s":' % word
+            )
             continue
         fp.startElement('word', attrs)
         fp.startElement('in', attrs)
@@ -93,4 +96,3 @@ def write_2(glos, filename):
     fp.endElement('words')
     fp.endDocument()
     xdbFp.close()
-
