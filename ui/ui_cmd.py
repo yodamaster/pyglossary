@@ -279,7 +279,7 @@ class UI(UIBase):
             self.pbar.update_step = 0.1
             self.reverseLoop(savePath=outputFilename)
         else:
-            succeed = self.glos.convert(
+            finalOutputFile = self.glos.convert(
                 inputFilename,
                 inputFormat=inputFormat,
                 outputFilename=outputFilename,
@@ -288,12 +288,6 @@ class UI(UIBase):
                 writeOptions=writeOptions,
                 **convertOptions
             )
-            if succeed:
-                # self.status('Convert finished')
-                log.info('Writing file "%s" done.' % (outputFilename))
-            else:
-                # self.status('Convert failed')
-                log.error('Writing file "%s" failed.' % (outputFilename))
-            return succeed
+            return bool(finalOutputFile)
 
         return True
