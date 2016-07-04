@@ -453,6 +453,10 @@ class Glossary(object):
         else:
             return default
 
+    def newDataEntry(self, fname, data):
+        inTmp = not self._readers
+        return DataEntry(fname, data, inTmp)
+
     # ________________________________________________________________________#
 
     def read(

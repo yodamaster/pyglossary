@@ -2,6 +2,97 @@
 import re
 
 
+class DataEntry(object): # or Resource? FIXME
+    def isData(self):
+        return True
+
+    def __init__(self, fname, data, inTmp=False):
+        assert isinstance(fname, str)
+        assert isinstance(data, bytes)
+        assert isinstance(inTmp, bool)
+
+        if inTmp:
+            tmpPath = mktemp(prefix=fname + '_')
+            with open(tmpPath, 'wb') as toFile:
+                toFile.write(data)
+            data = ''
+        else:
+            tmpPath = None
+
+        self._fname = fname
+        self._data = data  # bytes instance
+        self._tmpPath = tmpPath
+
+    def getFileName(self):
+        return self._fname
+
+    def getData(self):
+        if self._tmpPath:
+            with open(self._tmpPath, 'rb') as fromFile:
+                return fromFile.read()
+        else:
+            return self._data
+
+    def save(self, directory):
+        fname = self._fname
+        # fix filename depending on operating system? FIXME
+        fpath = join(directory, fname)
+        with open(fpath, 'wb') as toFile:
+            toFile.write(self.getData())
+        return fpath
+
+    def getWord(self):
+        return self._fname
+
+    def getWords(self):
+        return [self._fname]
+
+    def getDefi(self):
+        return 'File: %s' % self._fname  
+
+    def getDefis(self):
+        return [self.getDefi()]
+
+    def getDefiFormat(self):
+        return 'b' # 'm' or 'b' (binary) FIXME
+
+    def setDefiFormat(self, defiFormat):
+        pass
+
+    def detectDefiFormat(self):
+        pass
+
+    def addAlt(self, alt):
+        pass
+
+    def editFuncWord(self, func):
+        pass
+        # modify fname?
+        # FIXME
+
+    def editFuncDefi(self, func):
+        pass
+
+    def strip(self):
+        pass
+
+    def replaceInWord(self, source, target):
+        pass
+
+    def replaceInDefi(self, source, target):
+        pass
+
+    def replace(self, source, target):
+        pass
+
+    def getRaw(self):
+        return (
+            self._fname,
+            'DATA',
+            self,
+        )
+
+
 class Entry(object):
     sep = '|'
     htmlPattern = re.compile(
@@ -14,7 +105,10 @@ class Entry(object):
         re.S,
     )
 
-    def join(self, parts):
+    def isData(self):
+        return False
+
+    def join(self, parts): # make it private? FIXME
         return self.sep.join([
             part.replace(self.sep, '\\'+self.sep)
             for part in parts
@@ -227,6 +321,14 @@ class Entry(object):
         """
         word = rawEntry[0]
         defi = rawEntry[1]
+        if defi == 'DATA':
+            try:
+                dataEntry = rawEntry[2] # DataEntry instance
+            except IndexError:
+                pass
+            else:
+                # if isinstance(dataEntry, DataEntry)  # FIXME
+                return dataEntry
         try:
             defiFormat = rawEntry[2]
         except IndexError:
