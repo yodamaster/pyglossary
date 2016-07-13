@@ -7,7 +7,9 @@ format = 'LingoesLDF'
 description = 'Lingoes Source (LDF)'
 extentions = ['.ldf']
 readOptions = []
-writeOptions = []
+writeOptions = [
+    'resources',  # bool
+]
 
 infoKeys = [
     'title',
@@ -69,7 +71,11 @@ def read(glos, filename):
     addDataEntry(lineStack)
 
 
-def write(glos, filename):
+def write(
+    glos,
+    filename,
+    resources=True,
+):
     g = glos
     newline = '\n'
     head = newline.join([
@@ -89,4 +95,5 @@ def write(glos, filename):
         ),
         ext='.ldf',
         head=head,
+        resources=resources,
     )

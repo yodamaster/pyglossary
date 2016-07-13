@@ -14,6 +14,7 @@ writeOptions = [
     'writeInfo',  # bool
     'newline',  # str, or choice ('\r\n', '\n', or '\r')
     'encoding',  # str
+    'resources',  # bool
 ]
 
 
@@ -24,7 +25,14 @@ def entryCleanWinArabic(entry):
     return entry
 
 
-def write(glos, filename, writeInfo=True, newline='', encoding=''):
+def write(
+    glos,
+    filename,
+    writeInfo=True,
+    newline='',
+    encoding='',
+    resources=True,
+):
     g = glos
     entryFilterFunc = None
     if encoding.lower() in ('', 'utf8', 'utf-8'):
@@ -73,4 +81,5 @@ def write(glos, filename, writeInfo=True, newline='', encoding=''):
         head=head,
         entryFilterFunc=entryFilterFunc,
         encoding=encoding,
+        resources=resources,
     )
