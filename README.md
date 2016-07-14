@@ -50,7 +50,6 @@ Supported formats
 | Tabfile                           | .txt, .dic    | X     | X      |
 | TreeDict                          |               |       | X      |
 | XDXF                              | .xdxf         | X     |        |
-| xFarDic                           | .xdb          | X     | X      |
 
 
 Requirements
