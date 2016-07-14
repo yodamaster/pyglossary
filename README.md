@@ -140,7 +140,7 @@ Let's assume the Babylon dict is at
 `~/Documents/Duden_Synonym/Duden_Synonym.BGL`:
 
     cd ~/Documents/Duden_Synonym/
-    python3 ~/Software/pyglossary/pyglossary.pyw --read-options=resPath=OtherResources --write-format=AppleDict Duden_Synonym.BGL Duden_Synonym.xml
+    python3 ~/Software/pyglossary/pyglossary.pyw --write-format=AppleDict Duden_Synonym.BGL Duden_Synonym
     make
     make install
 
@@ -154,7 +154,7 @@ Let's assume the MDict dict is at
 Run the following command:
 
     cd ~/Documents/Duden-Oxford/
-    python3 ~/Software/pyglossary/pyglossary.pyw --read-options=resPath=OtherResources --write-format=AppleDict "Duden-Oxford DEED ver.20110408.mdx" "Duden-Oxford DEED ver.20110408.xml"
+    python3 ~/Software/pyglossary/pyglossary.pyw --write-format=AppleDict "Duden-Oxford DEED ver.20110408.mdx" "Duden-Oxford DEED ver.20110408"
     make
     make install
 
@@ -167,7 +167,7 @@ with the image/audio resources file `oald8.mdd`.
 Run the following commands: :
 
     cd ~/Downloads/oald8/
-    python3 ~/Software/pyglossary/pyglossary.pyw --read-options=resPath=OtherResources --write-format=AppleDict oald8.mdx oald8.xml
+    python3 ~/Software/pyglossary/pyglossary.pyw --write-format=AppleDict oald8.mdx oald8
 
 This extracts dictionary into `oald8.xml` and data resources into folder
 `OtherResources`. Hyperlinks use relative path. :
