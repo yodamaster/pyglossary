@@ -40,6 +40,7 @@ authors = fread(join(rootDir, 'AUTHORS')).split('\n')
 
 class UIBase(object):
     prefKeys = (
+        'skipResources',  # not saved
         'noProgressBar',  # command line
         'ui_autoSetFormat',
         'ui_autoSetOutputFileName',
